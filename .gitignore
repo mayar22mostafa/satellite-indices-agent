@@ -1,0 +1,29 @@
+# Secrets: never upload keys
+.env
+.env.*
+!.env.example
+*service-account*.json
+*credentials*.json
+
+# Generated files: tools recreate these
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+node_modules/
+dist/
+build/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+
+# Large data: satellite files are too big for Git
+*.tif
+*.tiff
+data/*
+!data/.gitkeep
