@@ -1,0 +1,13 @@
+.title {
+  color: var(--primary-color);
+}
+
+/* Bootstrap's primary button, recolored with the project palette */
+.confirmBtn {
+  --bs-btn-bg: var(--primary-color);
+  --bs-btn-border-color: var(--primary-color);
+  --bs-btn-hover-bg: #00264a;
+  --bs-btn-hover-border-color: #00264a;
+  --bs-btn-active-bg: #00264a;
+  --bs-btn-active-border-color: #00264a;
+}
