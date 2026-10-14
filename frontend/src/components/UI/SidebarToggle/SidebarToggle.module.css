@@ -1,0 +1,38 @@
+.toggle {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  z-index: 1041;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 56px;
+  border: none;
+  border-radius: 0 10px 10px 0;
+  background-color: var(--primary-color);
+  color: var(--white-color);
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: left 0.25s ease;
+}
+
+/* Sits on the sidebar's right edge while it is open */
+.toggleOpen {
+  left: var(--sidebar-width);
+}
+
+.toggle:hover {
+  background-color: #00264a;
+}
+
+.toggle:focus-visible {
+  outline: 3px solid var(--secondary-color);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle {
+    transition: none;
+  }
+}
