@@ -10,21 +10,27 @@ const sendMsgToAgent = async ({
     geojson,
 }) => {
     try {
-        const response = await axios.post(`${process.env.AGENT_URL}/agent/chat`,
-            {
-                message,
-                date,
-                startDate,
-                endDate,
-                conversationId,
-                geojson,
-            },
+
+        const payload = {
+            message,
+            conversationId,
+        };
+
+        if (date) payload.date = date;
+        if (startDate) payload.startDate = startDate;
+        if (endDate) payload.endDate = endDate;
+        if (geojson) payload.geojson = geojson;
+
+        const response = await axios.post(
+            `${process.env.AGENT_URL}/agent/chat`,
+            payload,
             {
                 timeout: 30000,
             }
         );
 
         return response.data;
+
     } catch (error) {
         if (
             error.code === "ECONNABORTED" ||

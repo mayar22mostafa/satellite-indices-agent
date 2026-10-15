@@ -1,4 +1,4 @@
-const {sendMsgToAgent} = require("../agent/agentService");
+const { sendMsgToAgent } = require("../agent/agentService");
 
 const sendMessage = async ({
   message,
@@ -8,19 +8,16 @@ const sendMessage = async ({
   conversationId,
   geojson,
 }) => {
-  
-  const result = await sendMsgToAgent ({
+  const result = await sendMsgToAgent({
     message,
     date,
     startDate,
     endDate,
     conversationId,
-    geojson
-  })
+    geojson,
+  });
 
-  return {
-   result
-  };
+  return result;
 };
 
 module.exports = {

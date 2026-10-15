@@ -15,9 +15,14 @@ const validateChat = (req, res, next) => {
 };
 
 const validateDateSelection = (req, res, next) => {
-  const { date, startDate, endDate } = req.body;
+  const { date, startDate, endDate, conversationId } = req.body;
 
-  // Case 1: User selected one date
+    // Case 1: Existing conversation
+  if (conversationId) {
+    return next();
+  } 
+
+  // Case 2: User selected one date
   if (date) {
     if (startDate || endDate) {
       return res.status(400).json({
@@ -28,7 +33,7 @@ const validateDateSelection = (req, res, next) => {
     return next();
   }
 
-  // Case 2: User selected a date range
+// Case 3: New conversation with a date range
   if (startDate && endDate) {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -42,13 +47,30 @@ const validateDateSelection = (req, res, next) => {
     return next();
   }
 
-  // Case 3: No date or incomplete date range
+  // Case 4: New conversation without a valid date selection
   return res.status(400).json({
     message: "Provide a date or both startDate and endDate",
   });
 };
 
 const validateGeoJSONFile = (req, res, next) => {
+
+    const { conversationId } = req.body;
+
+  // Existing conversation: file is optional
+  if (conversationId && !req.file) {
+    return next();
+  }
+
+  // New conversation: file is required
+  if (!conversationId && !req.file) {
+    return res.status(400).json({
+      message: "GeoJSON file is required",
+    });
+  }
+
+
+  // Case 2: New conversation - file is required
   if (!req.file) {
     return res.status(400).json({
       message: "GeoJSON file is required",
