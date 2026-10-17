@@ -1,0 +1,8 @@
+{
+  "type": "Feature",
+  "properties": {"name": "test area (about 4.2 km2)"},
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[30.98, 30.76], [31.0, 30.76], [31.0, 30.78], [30.98, 30.78], [30.98, 30.76]]]
+  }
+}
