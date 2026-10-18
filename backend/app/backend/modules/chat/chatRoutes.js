@@ -1,18 +1,16 @@
 const express = require("express");
-const multer = require("multer");
-
 const router = express.Router();
 
-const {sendMessage} = require("./chatController");
-const {validateChat, validateDateSelection, validateGeoJSONFile} = require("./chatValidation");
-const upload = require("../../middlewares/uploadMiddleware");
+const { sendMessage } = require("./chatController");
+const { validateChat, validateDateSelection, validateGeoJSONFile } = require("./chatValidation");
+const uploadGeoJSON = require("../../middlewares/uploadMiddleware");
 
 
-router.post("/sendmsg", 
-    upload.single("geojson"), 
-    validateChat, 
+router.post("/sendmsg",
+    uploadGeoJSON,
+    validateChat,
     validateDateSelection,
-    validateGeoJSONFile, 
+    validateGeoJSONFile,
     sendMessage);
 
 module.exports = router;

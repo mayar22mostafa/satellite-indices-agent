@@ -25,7 +25,7 @@ const sendMsgToAgent = async ({
             `${process.env.AGENT_URL}/agent/chat`,
             payload,
             {
-                timeout: 30000,
+                timeout: 35000,
             }
         );
 
