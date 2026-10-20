@@ -1,0 +1,66 @@
+const axios = require("axios");
+const AppError = require("../../utils/AppError");
+
+const sendMsgToAgent = async ({
+    message,
+    date,
+    startDate,
+    endDate,
+    conversationId,
+    geojson,
+}) => {
+    try {
+
+        const payload = {
+            message,
+            conversationId,
+        };
+
+        if (date) payload.date = date;
+        if (startDate) payload.startDate = startDate;
+        if (endDate) payload.endDate = endDate;
+        if (geojson) payload.geojson = geojson;
+
+        const response = await axios.post(
+            `${process.env.AGENT_URL}/agent/chat`,
+            payload,
+            {
+                timeout: 35000,
+            }
+        );
+
+        return response.data;
+
+    } catch (error) {
+        if (
+            error.code === "ECONNABORTED" ||
+            error.code === "ETIMEDOUT"
+        ) {
+            throw new AppError(
+                "Agent request timed out",
+                504
+            );
+        }
+
+        if (error.response) {
+            throw new AppError(
+                "Agent service returned an error",
+                502
+            );
+        }
+
+        if (error.request) {
+            throw new AppError(
+                "Could not connect to Agent service",
+                503
+            );
+        }
+
+        throw error;
+    }
+
+};
+
+module.exports = {
+    sendMsgToAgent,
+};

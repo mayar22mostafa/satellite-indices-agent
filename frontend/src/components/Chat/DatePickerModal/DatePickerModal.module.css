@@ -1,0 +1,20 @@
+.title {
+  color: var(--primary-color);
+}
+
+.dateInput:focus {
+  border-color: var(--secondary-color);
+  box-shadow: 0 0 0 0.15rem rgba(110, 193, 228, 0.25);
+}
+
+/* Bootstrap's primary button, recolored with your palette */
+.confirmBtn {
+  --bs-btn-bg: var(--primary-color);
+  --bs-btn-border-color: var(--primary-color);
+  --bs-btn-hover-bg: #00264a;
+  --bs-btn-hover-border-color: #00264a;
+  --bs-btn-active-bg: #00264a;
+  --bs-btn-active-border-color: #00264a;
+  --bs-btn-disabled-bg: var(--primary-color);
+  --bs-btn-disabled-border-color: var(--primary-color);
+}

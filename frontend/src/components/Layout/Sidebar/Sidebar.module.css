@@ -1,0 +1,74 @@
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1040;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: var(--sidebar-width);
+  height: 100vh;
+  height: 100dvh;
+  padding: 16px;
+  background-color: var(--primary-color);
+  color: var(--white-color);
+  transform: translateX(-100%);
+  visibility: hidden;
+  /* visibility waits until the slide-out ends, so the sidebar stays visible while moving */
+  transition:
+    transform 0.25s ease,
+    visibility 0s linear 0.25s;
+}
+
+.sidebarOpen {
+  transform: translateX(0);
+  visibility: visible;
+  transition:
+    transform 0.25s ease,
+    visibility 0s;
+}
+
+.brand {
+  height: 44px;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: var(--accent-color);
+  color: var(--white-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.newChatBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--white-color);
+  font-weight: 600;
+}
+
+.newChatBtn:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.listArea {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebarOpen {
+    transition: none;
+  }
+}
