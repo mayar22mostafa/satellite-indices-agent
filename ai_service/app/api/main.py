@@ -3,15 +3,18 @@
 import json
 import uuid
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
+from pydantic_ai.exceptions import AgentRunError
 
+from ..agent.planner import PlannerDeps, plan_turn
+from ..agent.schemas import AnalysisPlan
 from ..analysis.pipeline import run_fixed_pipeline
 from ..analysis.tools import AOI_DIR, init_earth_engine
 from ..registry.aoi import AOIError, aoi_from_geojson_bytes
-from ..registry import registry as reg
 
 
 @asynccontextmanager
@@ -20,17 +23,48 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Satellite Indices AI Service", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Satellite Indices AI Service", version="0.2.0", lifespan=lifespan)
+
+# In-memory stores (MVP): everything is lost when the service restarts.
+SESSIONS: dict[str, dict] = {}   # session_id -> {"aoi": GeoJSON, "deps": PlannerDeps, "history": list}
+PLANS: dict[str, dict] = {}      # plan_id -> {"session_id": str, "plan": AnalysisPlan, "result": dict | None}
 
 
-class AnalyzeRequest(BaseModel):
-    aoi: dict = Field(..., description="GeoJSON: FeatureCollection, Feature, or Polygon/MultiPolygon")
-    index: str = Field(..., description="NDVI, NDWI or NDBI")
-    start_date: date | None = Field(None, description="Default: 60 days before end_date")
-    end_date: date | None = Field(None, description="Default: today")
-    image_date: date | None = Field(None, description="Exact image day (skips the cloud filter)")
-    max_cloud: float = Field(20, ge=0, le=100)
-    cloud_mask: bool = True
+# ---------------- request bodies ----------------
+
+
+class PlanRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="The engineer's chat message")
+    session_id: str | None = Field(None, description="Omit on the first message of a chat")
+    aoi: dict | None = Field(None, description="GeoJSON area; required on the first message")
+
+
+# ---------------- helpers ----------------
+
+def _check_aoi(aoi: dict) -> bytes:
+    """Validate the area (Somaya's reader). Bad area -> 400."""
+    raw = json.dumps(aoi).encode()
+    try:
+        aoi_from_geojson_bytes(raw)
+    except AOIError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return raw
+
+
+def _save_aoi(raw: bytes) -> str:
+    """Save the area under a new id in data/aoi/ so the tools can load it."""
+    aoi_id = f"upload_{uuid.uuid4().hex[:8]}"
+    AOI_DIR.mkdir(parents=True, exist_ok=True)
+    (AOI_DIR / f"{aoi_id}.geojson").write_bytes(raw)
+    return aoi_id
+
+
+def _first_error(result: dict) -> str | None:
+    """The first error message in a pipeline result (top level or inside a step), or None."""
+    return result.get("error") or next(
+        (step["error"] for step in result.values() if isinstance(step, dict) and "error" in step),
+        None,
+    )
 
 
 def _geometry(geojson: dict) -> dict:
@@ -49,51 +83,85 @@ def _geometry(geojson: dict) -> dict:
     return geojson
 
 
+def _feature(aoi: dict, properties: dict) -> dict:
+    return {"type": "Feature", "geometry": _geometry(aoi), "properties": properties}
+
+
+# ---------------- endpoints ----------------
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse("/docs")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-@app.post("/analyze")
-def analyze(req: AnalyzeRequest):
-    # 0. Check the index first: no Earth Engine work for an index we don't support
-    index = req.index.upper()
-    supported = sorted(reg.INDICES)
-    if index not in supported:
-        raise HTTPException(status_code=422,
-                            detail=f"Unknown index '{req.index}'. Supported: {supported}")
-    
-    # 1. Check the area before touching Earth Engine -> a clear 400 error for bad input
-    raw = json.dumps(req.aoi).encode()
-    try:
-        aoi_from_geojson_bytes(raw)
-    except AOIError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
-    # 2. Dates
-    end = req.end_date or date.today()
-    start = req.start_date or end - timedelta(days=60)
+@app.post("/plans")
+def create_plan(req: PlanRequest):
+    """One chat message -> a plan to approve, or a clarifying question."""
+    if req.session_id is None:                                  # first message: new chat
+        if req.aoi is None:
+            raise HTTPException(status_code=400,
+                                detail="The first message of a chat must include 'aoi'.")
+        aoi_id = _save_aoi(_check_aoi(req.aoi))
+        session_id = f"s_{uuid.uuid4().hex[:8]}"
+        SESSIONS[session_id] = {"aoi": req.aoi, "deps": PlannerDeps(aoi_id=aoi_id), "history": None}
+    else:
+        session_id = req.session_id
+        if session_id not in SESSIONS:
+            raise HTTPException(status_code=404, detail="Unknown session_id (the chat expired "
+                                "or the service restarted). Start a new chat.")
+    session = SESSIONS[session_id]
 
-    # 3. Save the area under a temporary id, run the pipeline, then delete the file
-    aoi_id = f"upload_{uuid.uuid4().hex[:8]}"
-    AOI_DIR.mkdir(parents=True, exist_ok=True)
-    path = AOI_DIR / f"{aoi_id}.geojson"
-    path.write_bytes(raw)
     try:
+        output, session["history"] = plan_turn(req.message, session["deps"], session["history"])
+    except AgentRunError as e:
+        raise HTTPException(status_code=502, detail="The AI model could not answer. "
+                            f"Please try again. ({type(e).__name__})")
+
+    if isinstance(output, AnalysisPlan):
+        plan_id = f"plan_{uuid.uuid4().hex[:8]}"
+        PLANS[plan_id] = {"session_id": session_id, "plan": output, "result": None}
+        return {"session_id": session_id, "type": "plan", "plan_id": plan_id,
+                "plan": output.model_dump(mode="json")}
+    return {"session_id": session_id, "type": "question", **output.model_dump()}
+
+
+@app.post("/plans/{plan_id}/approve")
+def approve_plan(plan_id: str):
+    """The engineer approved: run exactly the saved plan, one pipeline run per index."""
+    entry = PLANS.get(plan_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Unknown plan_id (expired or the service "
+                            "restarted). Ask the agent for a new plan.")
+    if entry["result"] is not None:
+        return entry["result"]                     # approved before: same answer, no recompute
+
+    session = SESSIONS[entry["session_id"]]
+    plan: AnalysisPlan = entry["plan"]
+    results, errors = {}, {}
+    for index in plan.indices:
         result = run_fixed_pipeline(
-            aoi_id, index, start.isoformat(), end.isoformat(),
-            max_cloud=req.max_cloud, cloud_mask=req.cloud_mask,
-            image_date=req.image_date.isoformat() if req.image_date else None,
+            session["deps"].aoi_id, index, plan.start_date.isoformat(), plan.end_date.isoformat(),
+            max_cloud=plan.max_cloud, cloud_mask=plan.cloud_mask,
+            image_date=plan.image_date.isoformat() if plan.image_date else None,
         )
-    finally:
-        path.unlink(missing_ok=True)
+        error = _first_error(result)
+        if error:
+            errors[index] = error
+        else:
+            results[index] = result
 
-    error = result.get("error") or next(
-        (step["error"] for step in result.values() if isinstance(step, dict) and "error" in step),
-        None,
-    )
-    if error:
-        raise HTTPException(status_code=422, detail=error)
-    
-    return {"type": "Feature", "geometry": _geometry(req.aoi),
-            "properties": {"index": index, **result}}
+    if not results:
+        raise HTTPException(status_code=422, detail=errors)
+
+    response = _feature(session["aoi"], {
+        "session_id": entry["session_id"], "plan_id": plan_id,
+        "plan": plan.model_dump(mode="json"), "results": results, "errors": errors,
+    })
+    entry["result"] = response
+    return response
