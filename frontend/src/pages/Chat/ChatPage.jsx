@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   startNewChat,
   selectChatKey,
-  selectIsFirstMessage,
+  selectHasUserMessages,
 } from "../../store/chatSlice";
 import { SIDEBAR_DESKTOP_QUERY } from "../../config/constants";
 import Sidebar from "../../components/Layout/Sidebar/Sidebar";
@@ -18,7 +18,7 @@ const ChatPage = () => {
   // L1 => States & Global Data
   const dispatch = useDispatch();
   const chatKey = useSelector(selectChatKey);
-  const isFirstMessage = useSelector(selectIsFirstMessage);
+  const hasUserMessages = useSelector(selectHasUserMessages);
   // Open on desktop, closed on tablets and phones (decided once, at load)
   const [isSidebarOpen, setIsSidebarOpen] = useState(
     () => window.matchMedia(SIDEBAR_DESKTOP_QUERY).matches,
@@ -66,7 +66,7 @@ const ChatPage = () => {
       <Sidebar
         isOpen={isSidebarOpen}
         onNewChat={handleNewChat}
-        needsConfirm={!isFirstMessage}
+        needsConfirm={hasUserMessages}
       />
       <NewChatModal onConfirm={handleNewChat} />
       {isSidebarOpen && (

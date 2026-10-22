@@ -1,11 +1,15 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   addMessage,
   setStatus,
   receiveReply,
+  removeMessage,
+  expireConversation,
+  updateRequestProgress,
   finishRequest,
-  selectIsFirstMessage,
+  selectNeedsAttachments,
+  selectConversationId,
   selectIsWaiting,
   selectChatKey,
 } from "../../../store/chatSlice";
@@ -15,7 +19,12 @@ import { formatFileSize } from "../../../utils/formatFileSize";
 import { formatDateRange } from "../../../utils/dateUtils";
 import { getMissingItems, joinWithAnd } from "../../../utils/sendRules";
 import { createId } from "../../../utils/createId";
-import { askMockAgent } from "../../../services/mockAgent";
+import {
+  sendMessage,
+  getErrorMessage,
+  isConversationExpired,
+  isRequestCancelled,
+} from "../../../services/api";
 import AttachmentChip from "../../UI/AttachmentChip/AttachmentChip";
 import PlusMenu from "../PlusMenu/PlusMenu";
 import DatePickerModal from "../DatePickerModal/DatePickerModal";
@@ -24,21 +33,23 @@ import styles from "./ChatInput.module.css";
 const ChatInput = () => {
   // L1 => States & Global Data
   const dispatch = useDispatch();
-  const isFirstMessage = useSelector(selectIsFirstMessage);
+  const needsAttachments = useSelector(selectNeedsAttachments);
+  const conversationId = useSelector(selectConversationId);
   const isWaiting = useSelector(selectIsWaiting);
-  const chatKey = useSelector(selectChatKey); // never changes while this chat is on screen
+  const chatKey = useSelector(selectChatKey);
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
-  const [fileError, setFileError] = useState("");
+  const [errorMessage, setErrorMessage] = useState(""); // file problems and failed sends
   const [date, setDate] = useState(null); // { from: "YYYY-MM-DD", to: "YYYY-MM-DD" }
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const abortRef = useRef(null); // lets the user cancel the request that is running
   const isNearLimit = text.length >= MAX_MESSAGE_LENGTH * 0.9;
   // Derived values (never stored in state)
-  const missing = getMissingItems({ text, file, date, isFirstMessage });
+  const missing = getMissingItems({ text, file, date, needsAttachments });
   const canSend = missing.length === 0 && !isWaiting;
   const hint =
-    isFirstMessage && missing.length > 0
+    needsAttachments && missing.length > 0
       ? `Add ${joinWithAnd(missing)} to send.`
       : "";
 
@@ -51,6 +62,11 @@ const ChatInput = () => {
     el.style.height = `${el.scrollHeight + border}px`;
   }, [text]);
 
+  // Leaving this chat (New Chat) cancels the request that is still running
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
   // L3 => Handlers
   const handleChange = (e) => {
     setText(e.target.value);
@@ -59,45 +75,92 @@ const ChatInput = () => {
   const handleSend = async () => {
     if (!canSend) return;
 
-    // Plain data only: the File object itself never goes into Redux
-    const sentFile = file ? { name: file.name, size: file.size } : null;
+    // The real File is needed for the upload; Redux only gets plain details
+    const sentText = text.trim();
+    const sentFile = file;
     const sentDate = date;
+    const messageId = createId();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     dispatch(
       addMessage({
-        id: createId(),
+        id: messageId,
         role: "user",
-        text: text.trim(),
+        text: sentText,
         createdAt: Date.now(),
-        file: sentFile,
+        file: sentFile ? { name: sentFile.name, size: sentFile.size } : null,
         date: sentDate,
       }),
     );
-    dispatch(setStatus("waiting"));
+    dispatch(setStatus("sending"));
 
     // Attachments belong to the message that carried them
     setText("");
     setFile(null);
-    setFileError("");
+    setErrorMessage("");
     setDate(null);
 
-        try {
-      // TEMPORARY: replaced by the real API call in Sprint 2
-      const reply = await askMockAgent({ file: sentFile, date: sentDate });
+    try {
+      const answer = await sendMessage({
+        text: sentText,
+        file: sentFile,
+        date: sentDate,
+        conversationId, // null until the agent has started the conversation
+                signal: controller.signal,
+        onUploadProgress: (event) => {
+          const fraction =
+            event.progress ?? (event.total ? event.loaded / event.total : null);
+          if (fraction === null) return;
+          dispatch(
+            updateRequestProgress({
+              chatKey,
+              percent: Math.round(fraction * 100),
+            }),
+          );
+        },
+      });
       dispatch(
         receiveReply({
           chatKey, // ignored if the user started a new chat meanwhile
+          conversationId: answer.conversationId,
           message: {
             id: createId(),
             role: "agent",
-            text: reply,
+            text: answer.reply,
             createdAt: Date.now(),
           },
         }),
       );
+    } catch (error) {
+      // Take the message back and give the user everything to try again.
+      // If the user started a new chat meanwhile, all of this has no effect.
+      dispatch(removeMessage({ chatKey, id: messageId }));
+      if (isConversationExpired(error)) {
+        dispatch(expireConversation(chatKey));
+      }
+      // Whatever the user typed while waiting is kept after the restored text
+      setText((current) =>
+        current.trim() === ""
+          ? sentText
+          : `${sentText}\n\n${current}`.slice(0, MAX_MESSAGE_LENGTH),
+      );
+      setFile(sentFile);
+      setDate(sentDate);
+      if (isRequestCancelled(error)) {
+        // The user knows why: no alert, just let them edit the message
+        textareaRef.current?.focus();
+      } else {
+        setErrorMessage(`Message not sent. ${getErrorMessage(error)}`);
+      }
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       dispatch(finishRequest(chatKey)); // never leave the input locked
     }
+  };
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
   };
 
   const handleAttachFile = () => {
@@ -111,16 +174,16 @@ const ChatInput = () => {
 
     const error = validateFile(selected);
     if (error) {
-      setFileError(error);
+      setErrorMessage(error);
       return;
     }
-    setFileError("");
+    setErrorMessage("");
     setFile(selected);
   };
 
   const handleRemoveFile = () => {
     setFile(null);
-    setFileError("");
+    setErrorMessage("");
   };
 
   const handleConfirmDate = (selected) => {
@@ -149,17 +212,17 @@ const ChatInput = () => {
         onChange={handleFileChange}
       />
 
-      {fileError && (
+      {errorMessage && (
         <div
           className="alert alert-danger small d-flex align-items-start justify-content-between gap-2 py-2 px-3 mb-2"
           role="alert"
         >
-          <span>{fileError}</span>
+          <span>{errorMessage}</span>
           <button
             type="button"
             className="btn-close flex-shrink-0"
             aria-label="Dismiss error"
-            onClick={() => setFileError("")}
+            onClick={() => setErrorMessage("")}
           ></button>
         </div>
       )}
@@ -201,15 +264,16 @@ const ChatInput = () => {
           onChange={handleChange}
           onKeyDown={handleKeyDown}
         />
+        {/* One button, so the keyboard focus stays on it: Send, or Cancel while waiting */}
         <button
           type="button"
-          className={styles.sendBtn}
-          disabled={!canSend}
-          onClick={handleSend}
-          aria-label="Send message"
+          className={`${styles.sendBtn} ${isWaiting ? styles.stopBtn : ""}`}
+          disabled={!isWaiting && !canSend}
+          onClick={isWaiting ? handleCancel : handleSend}
+          aria-label={isWaiting ? "Cancel request" : "Send message"}
           aria-describedby="send-hint"
         >
-          <i className="fa-solid fa-paper-plane"></i>
+          <i className={`fa-solid ${isWaiting ? "fa-stop" : "fa-paper-plane"}`}></i>
         </button>
       </div>
 

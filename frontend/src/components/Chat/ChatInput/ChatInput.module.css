@@ -37,6 +37,14 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* While the agent is working the same button cancels the request */
+.stopBtn {
+  background-color: #dc3545;
+}
+
+.stopBtn:hover {
+  background-color: #bb2d3b;
+}
 
 .footerRow {
   display: flex;

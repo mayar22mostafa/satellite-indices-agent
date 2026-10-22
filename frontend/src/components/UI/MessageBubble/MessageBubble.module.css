@@ -29,6 +29,13 @@
   border-bottom-left-radius: 4px;
 }
 
+/* A problem reported by the app (not an answer from the agent) */
+/* .bubbleError {
+  background-color: #fdecea;
+  color: #8a1c14;
+  border: 1px solid #f5c2bd;
+} */
+
 .text {
   font-size: 0.95rem;
   white-space: pre-wrap;
