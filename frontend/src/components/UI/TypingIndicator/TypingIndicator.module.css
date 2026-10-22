@@ -15,6 +15,11 @@
   color: #6c757d;
   font-size: 0.85rem;
 }
+/* After a long wait the bubble changes color to catch the eye */
+.bubbleSlow {
+  background-color: #fff4d6;
+  color: #6b4e00;
+}
 
 .dots {
   display: flex;

@@ -1,9 +1,9 @@
 // What the user still has to provide before the message can be sent
-export const getMissingItems = ({ text, file, date, isFirstMessage }) => {
+export const getMissingItems = ({ text, file, date, needsAttachments }) => {
   const missing = [];
   if (text.trim() === "") missing.push("a message");
-  if (isFirstMessage && !file) missing.push("a file");
-  if (isFirstMessage && !date) missing.push("a date");
+  if (needsAttachments && !file) missing.push("a file");
+  if (needsAttachments && !date) missing.push("a date");
   return missing;
 };
 

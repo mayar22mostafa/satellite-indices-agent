@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { selectIsWaiting } from "../../../store/chatSlice";
+import {
+  selectStatus,
+  selectUploadPercent,
+} from "../../../store/chatSlice";
 import MessageBubble from "../../UI/MessageBubble/MessageBubble";
 import TypingIndicator from "../../UI/TypingIndicator/TypingIndicator";
 import styles from "./MessageList.module.css";
@@ -10,7 +13,9 @@ const NEAR_BOTTOM_PX = 80;
 const MessageList = () => {
   // L1 => States & Global Data
   const messages = useSelector((state) => state.chat.messages);
-  const isWaiting = useSelector(selectIsWaiting);
+  const status = useSelector(selectStatus);
+  const uploadPercent = useSelector(selectUploadPercent);
+  const isWaiting = status !== "idle";
   const listRef = useRef(null);
   const isNearBottomRef = useRef(true);
 
@@ -50,7 +55,7 @@ const MessageList = () => {
           date={message.date}
         />
       ))}
-      {isWaiting && <TypingIndicator />}
+      {isWaiting && <TypingIndicator phase={status} percent={uploadPercent} />}
     </div>
   );
 };
