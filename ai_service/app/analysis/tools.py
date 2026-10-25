@@ -29,14 +29,35 @@ AOI_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")   # letters, numbers, _ an
 SAT = reg.SENTINEL2                          # the only satellite in the MVP
 
 # Display only (colours on the map). Not science, so it lives here, not in the registry.
+
 VIS = {
-    "NDVI": {"min": -0.2, "max": 0.8,
-             "palette": ["a50026", "f46d43", "fee08b", "d9ef8b", "66bd63", "006837"]},
-    "NDWI": {"min": -0.5, "max": 0.5,
-             "palette": ["8c510a", "f6e8c3", "c7eae5", "01665e", "08306b"]},
-    "NDBI": {"min": -0.5, "max": 0.5,
-             "palette": ["1a9850", "ffffbf", "d73027"]},
+    "NDVI": {
+        "min": -0.2,
+        "max": 0.8,
+        "palette": ["a50026", "f46d43", "fee08b", "d9ef8b", "66bd63", "006837"],
+    },
+    "NDWI": {
+        "min": -0.5,
+        "max": 0.5,
+        "palette": ["8c510a", "f6e8c3", "c7eae5", "01665e", "08306b"],
+    },
+    "NDBI": {
+        "min": -0.5,
+        "max": 0.5,
+        "palette": ["1a9850", "ffffbf", "d73027"],
+    },
+    "LAND_COVER": {
+        "min": 1,
+        "max": 4,
+        "palette": [
+            "2878B5",  # 1: water candidate - blue
+            "36A657",  # 2: vegetation candidate - green
+            "E34A33",  # 3: built-up candidate - red
+            "D9B44A",  # 4: bare or uncertain - yellow
+        ],
+    },
 }
+
 
 
 def init_earth_engine() -> None:
@@ -289,3 +310,186 @@ def create_map_layer(ctx: RunContext, result_id: str) -> dict:
                                       "dimensions": 1024, "format": "png"})
     return {"result_id": result_id, "tile_url": tiles["tile_fetcher"].url_format,
             "preview_url": preview}
+
+@safe_tool
+def classify_land_cover(
+    ctx: RunContext,
+    image_ref: str,
+    aoi_id: str,
+    cloud_mask: bool = True,
+    scale_m: int = 20,
+) -> dict:
+    """Create an exploratory, rule-based land-cover candidate map.
+
+    Classes:
+      0 = unclassified
+      1 = water_candidate
+      2 = vegetation_candidate
+      3 = built_up_candidate
+      4 = bare_or_uncertain
+
+    This is not a trained or accuracy-validated land-cover classifier.
+    """
+    if image_ref not in ctx.images:
+        return {"error": f"Unknown image '{image_ref}'. Call select_image first."}
+    if aoi_id not in ctx.aois:
+        return {"error": f"Unknown area '{aoi_id}'. Call describe_aoi first."}
+    if scale_m < 20:
+        return {"error": "scale_m must be at least 20 for this Sentinel-2 classification."}
+
+    image = ctx.images[image_ref]["image"]
+    geom = ctx.aois[aoi_id]
+
+    if cloud_mask:
+        scl = image.select("SCL")
+        clear = ee.Image(1)
+        for value in reg.SCL_MASKED_CLASSES:
+            clear = clear.And(scl.neq(value))
+        image = image.updateMask(clear)
+
+    sat = reg.SENTINEL2
+    reflectance = image.select(["B3", "B4", "B8", "B11"]).multiply(
+        sat.scale_factor
+    ).add(sat.offset)
+
+    green = reflectance.select("B3")
+    red = reflectance.select("B4")
+    nir = reflectance.select("B8")
+    swir1 = reflectance.select("B11")
+
+    ndvi_den = nir.add(red)
+    ndwi_den = green.add(nir)
+    mndwi_den = green.add(swir1)
+    ndbi_den = swir1.add(nir)
+
+    ndvi = nir.subtract(red).divide(ndvi_den).updateMask(ndvi_den.neq(0))
+    ndwi = green.subtract(nir).divide(ndwi_den).updateMask(ndwi_den.neq(0))
+    mndwi = green.subtract(swir1).divide(mndwi_den).updateMask(mndwi_den.neq(0))
+    ndbi = swir1.subtract(nir).divide(ndbi_den).updateMask(ndbi_den.neq(0))
+
+    # Exploratory starting rules, not universal thresholds.
+    water = mndwi.gt(0.0).And(ndwi.gt(0.0)).And(ndvi.lt(0.25))
+    vegetation = ndvi.gte(0.35).And(water.Not())
+    built_up = (
+        ndbi.gt(0.0)
+        .And(ndvi.lt(0.25))
+        .And(water.Not())
+    )
+    bare_or_uncertain = water.Or(vegetation).Or(built_up).Not()
+
+    classification = (
+        ee.Image(4)
+        .where(built_up, 3)
+        .where(vegetation, 2)
+        .where(water, 1)
+        .rename("land_cover")
+        .updateMask(ndvi.mask())
+        .clip(geom)
+        .toByte()
+    )
+
+    result_id = f"LC_{image_ref}_{aoi_id}"
+    ctx.results[result_id] = {
+        "image": classification,
+        "aoi_id": aoi_id,
+        "index": "LAND_COVER",
+        "scale_m": scale_m,
+    }
+
+    # Compute area by class in hectares, using the pixel area image.
+    area_image = ee.Image.pixelArea().divide(10000).rename("area_ha")
+    grouped = area_image.addBands(classification).reduceRegion(
+        reducer=ee.Reducer.sum().group(
+            groupField=1,
+            groupName="class_id",
+        ),
+        geometry=geom,
+        scale=scale_m,
+        maxPixels=1e10,
+        tileScale=4,
+    ).getInfo()
+
+    class_names = {
+        1: "water_candidate",
+        2: "vegetation_candidate",
+        3: "built_up_candidate",
+        4: "bare_or_uncertain",
+    }
+    areas = {}
+    for item in grouped.get("groups", []):
+        class_id = int(item["class_id"])
+        areas[class_names.get(class_id, str(class_id))] = round(
+            float(item["sum"]), 2
+        )
+
+    total_valid_ha = round(sum(areas.values()), 2)
+    percentages = {
+        name: round(100 * area / total_valid_ha, 2)
+        for name, area in areas.items()
+    } if total_valid_ha else {}
+
+    return {
+        "result_id": result_id,
+        "classification": "exploratory_rule_based",
+        "resolution_m": scale_m,
+        "class_codes": {
+            "1": "water_candidate",
+            "2": "vegetation_candidate",
+            "3": "built_up_candidate",
+            "4": "bare_or_uncertain",
+        },
+        "area_hectares": areas,
+        "percent_of_valid_area": percentages,
+        "valid_area_hectares": total_valid_ha,
+        "limitations": [
+            "These are candidate classes from heuristic thresholds, not validated labels.",
+            "NDVI cannot distinguish crops from other vegetation by itself.",
+            "NDBI can confuse bare soil and some built-up surfaces.",
+            "Area statistics exclude pixels masked as clouds or no-data.",
+        ],
+    }
+
+@safe_tool
+def create_land_cover_map(ctx: RunContext, result_id: str) -> dict:
+    """Create map tile and preview URLs for a land-cover classification."""
+    if result_id not in ctx.results:
+        return {"error": f"Unknown result_id: {result_id}"}
+
+    result = ctx.results[result_id]
+
+    if result.get("index") != "LAND_COVER":
+        return {
+            "error": f"Result {result_id} is not a LAND_COVER result."
+        }
+
+    aoi_id = result.get("aoi_id")
+    if aoi_id not in ctx.aois:
+        return {"error": f"AOI not found for result: {aoi_id}"}
+
+    image = result["image"]
+    vis = VIS["LAND_COVER"]
+
+    try:
+        map_info = image.getMapId(vis)
+
+        preview_url = image.getThumbURL({
+            **vis,
+            "region": ctx.aois[aoi_id],
+            "dimensions": 1024,
+            "format": "png",
+        })
+
+        return {
+            "result_id": result_id,
+            "aoi_id": aoi_id,
+            "tile_url": map_info["tile_fetcher"].url_format,
+            "preview_url": preview_url,
+            "legend": [
+                {"code": 1, "label": "Water candidate", "color": "#2878B5"},
+                {"code": 2, "label": "Vegetation candidate", "color": "#36A657"},
+                {"code": 3, "label": "Built-up candidate", "color": "#E34A33"},
+                {"code": 4, "label": "Bare or uncertain", "color": "#D9B44A"},
+            ],
+        }
+    except Exception as exc:
+        return {"error": f"Could not create land-cover map: {exc}"}
