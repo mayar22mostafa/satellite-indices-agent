@@ -12,9 +12,16 @@ from . import tools
 from .context import RunContext
 
 
-def run_fixed_pipeline(aoi_id: str, index_name: str, start_date: str, end_date: str,
-                       max_cloud: float = 20, cloud_mask: bool = True,
-                       image_date: str | None = None) -> dict:
+def run_fixed_pipeline(
+    aoi_id: str,
+    index_name: str,
+    start_date: str,
+    end_date: str,
+    max_cloud: float = 20,
+    cloud_mask: bool = True,
+    image_date: str | None = None,
+) -> dict:
+    """Run the original spectral-index pipeline in a fixed order."""
     ctx = RunContext()
     steps = {}
 
@@ -22,19 +29,85 @@ def run_fixed_pipeline(aoi_id: str, index_name: str, start_date: str, end_date: 
     if "error" in steps["describe_aoi"]:
         return steps
 
-    steps["select_image"] = tools.select_image(ctx, aoi_id, start_date, end_date, max_cloud, date=image_date)
+    steps["select_image"] = tools.select_image(
+        ctx,
+        aoi_id,
+        start_date,
+        end_date,
+        max_cloud,
+        date=image_date,
+    )
     if "error" in steps["select_image"]:
         return steps
+
     image_ref = steps["select_image"]["image_ref"]
 
-    steps["compute_index"] = tools.compute_index(ctx, image_ref, aoi_id, index_name, cloud_mask)
+    steps["compute_index"] = tools.compute_index(
+        ctx, image_ref, aoi_id, index_name, cloud_mask
+    )
     if "error" in steps["compute_index"]:
         return steps
+
     result_id = steps["compute_index"]["result_id"]
 
     steps["compute_statistics"] = tools.compute_statistics(ctx, result_id)
     steps["create_map_layer"] = tools.create_map_layer(ctx, result_id)
+
     return steps
+
+
+
+
+def run_land_cover_pipeline(
+    aoi_id: str,
+    start_date: str,
+    end_date: str,
+    max_cloud: float = 20,
+    cloud_mask: bool = True,
+    image_date: str | None = None,
+) -> dict:
+    """Run land-cover classification without changing the spectral-index pipeline."""
+    ctx = RunContext()
+    steps = {}
+
+    steps["describe_aoi"] = tools.describe_aoi(ctx, aoi_id)
+    if "error" in steps["describe_aoi"]:
+        return steps
+
+    steps["select_image"] = tools.select_image(
+        ctx,
+        aoi_id,
+        start_date,
+        end_date,
+        max_cloud,
+        date=image_date,
+    )
+    if "error" in steps["select_image"]:
+        return steps
+
+    image_ref = steps["select_image"]["image_ref"]
+
+    steps["classify_land_cover"] = tools.classify_land_cover(
+        ctx,
+        image_ref,
+        aoi_id,
+        cloud_mask=cloud_mask,
+    )
+    if "error" in steps["classify_land_cover"]:
+        return steps
+
+    result_id = steps["classify_land_cover"]["result_id"]
+
+    steps["create_land_cover_map"] = tools.create_land_cover_map(
+        ctx,
+        result_id,
+    )
+
+    if "error" in steps["create_land_cover_map"]:
+        return steps
+
+    return steps
+
 
 
 def main() -> None:
