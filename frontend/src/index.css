@@ -1,13 +1,82 @@
-@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap");
 
-:root {
+/* Consistent EgSA Brand Palette across Dark and Light Themes */
+
+:root,
+[data-theme="dark"] {
+  /* Brand Core Tokens */
   --primary-color: #00315e;
-  --white-color: #ffffff;
   --secondary-color: #325e86;
   --accent-color: #325e86;
-  --text-color: #000;
-  --background-color: hsla(210, 3%, 85%, 0.89);
   --sidebar-width: 240px;
+
+  /* Surfaces & Backgrounds (Navy-tinted dark surfaces matching brand #00315e) */
+  --white-color: #0f1a2e;
+  --background-color: #070d18;
+  --bg-page: #070d18;
+  --bg-surface: #0f1a2e;
+  --bg-surface-elevated: #16243d;
+  --bg-surface-hover: #1e3252;
+
+  /* Borders & Dividers */
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-color-strong: rgba(255, 255, 255, 0.2);
+
+  /* Typography */
+  --text-color: #f8fafc;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  /* Interactive & Accents */
+  --accent-primary: #4a8cd1;
+  --accent-primary-hover: #5b9de2;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-danger: #ef4444;
+
+  /* Inputs & Controls */
+  --input-bg: #0a1322;
+  --input-border: rgba(255, 255, 255, 0.15);
+  --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] {
+  /* Brand Core Tokens */
+  --primary-color: #00315e;
+  --secondary-color: #325e86;
+  --accent-color: #325e86;
+  --sidebar-width: 240px;
+
+  /* Surfaces & Backgrounds */
+  --white-color: #ffffff;
+  --background-color: #f1f5f9;
+  --bg-page: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f8fafc;
+  --bg-surface-hover: #e2e8f0;
+
+  /* Borders & Dividers */
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-color-strong: rgba(0, 0, 0, 0.16);
+
+  /* Typography */
+  --text-color: #0f172a;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+
+  /* Interactive & Accents */
+  --accent-primary: #00315e;
+  --accent-primary-hover: #325e86;
+  --accent-success: #059669;
+  --accent-warning: #d97706;
+  --accent-danger: #dc2626;
+
+  /* Inputs & Controls */
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
 }
 
 * {
@@ -18,6 +87,70 @@
 }
 
 body {
-  background-color: var(--white-color);
+  background-color: var(--background-color);
   color: var(--text-color);
+  transition: background-color 0.25s ease, color 0.25s ease;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.45);
+}
+
+/* Form control theme adaptions */
+[data-theme="dark"] .form-control {
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  border-color: var(--input-border);
+}
+
+[data-theme="dark"] .form-control:focus {
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  border-color: var(--secondary-color);
+}
+
+[data-theme="dark"] .modal-content {
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-color-strong);
+}
+
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .modal-footer {
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+[data-theme="dark"] .dropdown-menu {
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-color-strong);
+}
+
+[data-theme="dark"] .dropdown-item {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
 }

@@ -28,6 +28,7 @@ import {
 import AttachmentChip from "../../UI/AttachmentChip/AttachmentChip";
 import PlusMenu from "../PlusMenu/PlusMenu";
 import DatePickerModal from "../DatePickerModal/DatePickerModal";
+import MapSelectionModal from "../../Map/MapSelectionModal";
 import styles from "./ChatInput.module.css";
 
 const ChatInput = () => {
@@ -39,12 +40,15 @@ const ChatInput = () => {
   const chatKey = useSelector(selectChatKey);
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
-  const [errorMessage, setErrorMessage] = useState(""); // file problems and failed sends
+  const [mapArea, setMapArea] = useState(null); // { areaKm2, geojson, coordinates }
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [date, setDate] = useState(null); // { from: "YYYY-MM-DD", to: "YYYY-MM-DD" }
+  const [errorMessage, setErrorMessage] = useState(""); // file problems and failed sends
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null); // lets the user cancel the request that is running
   const isNearLimit = text.length >= MAX_MESSAGE_LENGTH * 0.9;
+
   // Derived values (never stored in state)
   const missing = getMissingItems({ text, file, date, needsAttachments });
   const canSend = missing.length === 0 && !isWaiting;
@@ -57,6 +61,7 @@ const ChatInput = () => {
   // Grow the field with its content (also shrinks it after clearing)
   useLayoutEffect(() => {
     const el = textareaRef.current;
+    if (!el) return;
     el.style.height = "auto";
     const border = el.offsetHeight - el.clientHeight;
     el.style.height = `${el.scrollHeight + border}px`;
@@ -65,6 +70,29 @@ const ChatInput = () => {
   // Leaving this chat (New Chat) cancels the request that is still running
   useEffect(() => {
     return () => abortRef.current?.abort();
+  }, []);
+
+  // Listen for external focus and prefill events (e.g. PlanCard "Change" or Question quick-replies)
+  useEffect(() => {
+    const handleFocus = () => {
+      textareaRef.current?.focus();
+    };
+
+    const handlePrefill = (e) => {
+      const incoming = e.detail?.text;
+      if (incoming) {
+        setText((prev) => (prev.trim() ? `${prev.trim()} ${incoming}` : incoming));
+      }
+      textareaRef.current?.focus();
+    };
+
+    window.addEventListener("focus-chat-input", handleFocus);
+    window.addEventListener("prefill-chat-input", handlePrefill);
+
+    return () => {
+      window.removeEventListener("focus-chat-input", handleFocus);
+      window.removeEventListener("prefill-chat-input", handlePrefill);
+    };
   }, []);
 
   // L3 => Handlers
@@ -79,6 +107,7 @@ const ChatInput = () => {
     const sentText = text.trim();
     const sentFile = file;
     const sentDate = date;
+    const sentMapArea = mapArea;
     const messageId = createId();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -87,9 +116,17 @@ const ChatInput = () => {
       addMessage({
         id: messageId,
         role: "user",
+        type: "user",
         text: sentText,
         createdAt: Date.now(),
-        file: sentFile ? { name: sentFile.name, size: sentFile.size } : null,
+        file: sentFile
+          ? {
+              name: sentMapArea ? "Map Selection" : sentFile.name,
+              size: sentFile.size,
+              isMapSelection: Boolean(sentMapArea),
+              areaKm2: sentMapArea?.areaKm2 || null,
+            }
+          : null,
         date: sentDate,
       }),
     );
@@ -98,8 +135,9 @@ const ChatInput = () => {
     // Attachments belong to the message that carried them
     setText("");
     setFile(null);
-    setErrorMessage("");
+    setMapArea(null);
     setDate(null);
+    setErrorMessage("");
 
     try {
       const answer = await sendMessage({
@@ -107,7 +145,7 @@ const ChatInput = () => {
         file: sentFile,
         date: sentDate,
         conversationId, // null until the agent has started the conversation
-                signal: controller.signal,
+        signal: controller.signal,
         onUploadProgress: (event) => {
           const fraction =
             event.progress ?? (event.total ? event.loaded / event.total : null);
@@ -124,12 +162,7 @@ const ChatInput = () => {
         receiveReply({
           chatKey, // ignored if the user started a new chat meanwhile
           conversationId: answer.conversationId,
-          message: {
-            id: createId(),
-            role: "agent",
-            text: answer.reply,
-            createdAt: Date.now(),
-          },
+          message: answer.message,
         }),
       );
     } catch (error) {
@@ -146,6 +179,7 @@ const ChatInput = () => {
           : `${sentText}\n\n${current}`.slice(0, MAX_MESSAGE_LENGTH),
       );
       setFile(sentFile);
+      setMapArea(sentMapArea);
       setDate(sentDate);
       if (isRequestCancelled(error)) {
         // The user knows why: no alert, just let them edit the message
@@ -179,13 +213,28 @@ const ChatInput = () => {
     }
     setErrorMessage("");
     setFile(selected);
+    setMapArea(null);
   };
 
   const handleRemoveFile = () => {
     setFile(null);
+    setMapArea(null);
     setErrorMessage("");
   };
 
+  // Map Selection handlers
+  const handleConfirmMapSelection = ({ file: drawnFile, areaKm2, geojson, coordinates }) => {
+    setFile(drawnFile);
+    setMapArea({ areaKm2, geojson, coordinates });
+    setErrorMessage("");
+  };
+
+  const handleRemoveMapArea = () => {
+    setFile(null);
+    setMapArea(null);
+  };
+
+  // Restores date to dedicated panel above text field
   const handleConfirmDate = (selected) => {
     setDate(selected);
   };
@@ -227,9 +276,18 @@ const ChatInput = () => {
         </div>
       )}
 
+      {/* Attachments panel positioned above the text field */}
       {(file || date) && (
         <div className="d-flex flex-wrap gap-2 mb-2">
-          {file && (
+          {file && mapArea ? (
+            <AttachmentChip
+              icon="fa-solid fa-draw-polygon"
+              label="Map Selection"
+              detail={`${mapArea.areaKm2} km²`}
+              removeLabel="Remove map selection"
+              onRemove={handleRemoveMapArea}
+            />
+          ) : file ? (
             <AttachmentChip
               icon="fa-solid fa-file"
               label={file.name}
@@ -237,7 +295,7 @@ const ChatInput = () => {
               removeLabel={`Remove ${file.name}`}
               onRemove={handleRemoveFile}
             />
-          )}
+          ) : null}
           {date && (
             <AttachmentChip
               icon="fa-solid fa-calendar-days"
@@ -250,7 +308,11 @@ const ChatInput = () => {
       )}
 
       <div className="d-flex align-items-end gap-2">
-        <PlusMenu onAttachFile={handleAttachFile} disabled={isWaiting} />
+        <PlusMenu
+          onAttachFile={handleAttachFile}
+          onSelectOnMap={() => setIsMapModalOpen(true)}
+          disabled={isWaiting}
+        />
         <textarea
           ref={textareaRef}
           className={`form-control ${styles.textField}`}
@@ -290,6 +352,15 @@ const ChatInput = () => {
       </div>
 
       <DatePickerModal value={date} onConfirm={handleConfirmDate} />
+
+      {isMapModalOpen && (
+        <MapSelectionModal
+          isOpen={isMapModalOpen}
+          onClose={() => setIsMapModalOpen(false)}
+          onConfirm={handleConfirmMapSelection}
+          initialCoordinates={mapArea?.coordinates}
+        />
+      )}
     </div>
   );
 };

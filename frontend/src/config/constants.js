@@ -13,13 +13,17 @@ export const ALLOW_FUTURE_DATES = false;
 // Shared by the "+" menu item and the modal so the id can't be mistyped
 export const DATE_MODAL_ID = "date-modal";
 
-// The backend waits 35 s for the agent, so the page waits a little longer
-export const REQUEST_TIMEOUT_MS = 40000;
+// Extended message timeout duration (120 seconds) allowing inactive agents time to respond
+export const REQUEST_TIMEOUT_MS = 120000;
+
+// The /plans/{plan_id}/approve endpoint timeout is 120 seconds
+export const APPROVE_TIMEOUT_MS = 120000;
 
 // After this many seconds the indicator tells the user it is taking longer
-export const SLOW_RESPONSE_SECONDS = 15;
+export const SLOW_RESPONSE_SECONDS = 20;
 
-export const WELCOME_MESSAGE = `Hello! Tell me what you are looking for, attach a file (${ALLOWED_EXTENSIONS.join(", ")}, a single Polygon only), and choose a date or date range. Then press Send.`;// At this width and above, the sidebar starts open and has no dark backdrop
+export const WELCOME_MESSAGE = `Hello! Tell me what you are looking for, attach a file (${ALLOWED_EXTENSIONS.join(", ")}, a single Polygon only), and choose a date or date range. Then press Send.`;
+// At this width and above, the sidebar starts open and has no dark backdrop
 export const SIDEBAR_DESKTOP_QUERY = "(min-width: 1200px)";
 
 // Links the toggle arrow to the sidebar (aria-controls)

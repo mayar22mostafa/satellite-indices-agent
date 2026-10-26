@@ -23,7 +23,7 @@
 }
 
 .toggle:hover {
-  background-color: #00264a;
+  background-color: var(--accent-primary-hover, #0284c7);
 }
 
 .toggle:focus-visible {

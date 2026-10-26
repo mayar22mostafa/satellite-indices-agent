@@ -1,0 +1,110 @@
+.row {
+  display: flex;
+  margin-bottom: 1.25rem;
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: 85%;
+  background: var(--bg-surface-elevated, #1a2236);
+  border: 1px solid var(--border-color-strong, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  padding: 1.15rem 1.25rem;
+  box-shadow: var(--card-shadow, 0 4px 15px rgba(0, 0, 0, 0.2));
+  position: relative;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.prompt {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
+  margin-bottom: 0.4rem;
+  line-height: 1.5;
+}
+
+.reason {
+  font-size: 0.85rem;
+  color: var(--text-muted, #94a3b8);
+  font-style: italic;
+  margin-bottom: 0.85rem;
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.optionsArea {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.optionsLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.optionsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.optionChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--accent-primary, #38bdf8);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.optionChip:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.45);
+  transform: translateY(-1px);
+}
+
+.optionChip:active {
+  transform: translateY(0);
+}
+
+.time {
+  font-size: 0.72rem;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 0.6rem;
+  display: block;
+  text-align: right;
+}

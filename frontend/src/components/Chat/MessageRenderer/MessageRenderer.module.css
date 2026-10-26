@@ -1,0 +1,14 @@
+.messageWrapper {
+  margin-bottom: 1.25rem;
+  width: 100%;
+}
+
+.agentWrapper {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.userWrapper {
+  display: flex;
+  justify-content: flex-end;
+}

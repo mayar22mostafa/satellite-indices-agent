@@ -1,13 +1,12 @@
 .title {
-  color: var(--primary-color);
+  color: var(--accent-primary, var(--primary-color));
 }
 
-/* Bootstrap's primary button, recolored with the project palette */
 .confirmBtn {
   --bs-btn-bg: var(--primary-color);
   --bs-btn-border-color: var(--primary-color);
-  --bs-btn-hover-bg: #00264a;
-  --bs-btn-hover-border-color: #00264a;
-  --bs-btn-active-bg: #00264a;
-  --bs-btn-active-border-color: #00264a;
+  --bs-btn-hover-bg: var(--accent-primary-hover, #0284c7);
+  --bs-btn-hover-border-color: var(--accent-primary-hover, #0284c7);
+  --bs-btn-active-bg: var(--accent-primary-hover, #0284c7);
+  --bs-btn-active-border-color: var(--accent-primary-hover, #0284c7);
 }

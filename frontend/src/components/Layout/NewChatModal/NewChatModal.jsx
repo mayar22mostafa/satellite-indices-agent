@@ -33,7 +33,7 @@ const NewChatModal = ({ onConfirm }) => {
 
           <div className="modal-body">
             <p className="mb-0">
-              The current conversation will be cleared. This cannot be undone.
+              Your current conversation will remain saved in the sidebar. Start a new chat?
             </p>
           </div>
 
