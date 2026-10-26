@@ -23,10 +23,20 @@ const MessageBubble = ({ role, text, createdAt, file, date }) => {
           <div className={styles.attachments}>
             {file && (
               <span className={styles.attachment}>
-                <i className="fa-solid fa-file"></i>
-                <span className={styles.attachmentName}>{file.name}</span>
+                <i
+                  className={
+                    file.isMapSelection
+                      ? "fa-solid fa-draw-polygon"
+                      : "fa-solid fa-file"
+                  }
+                ></i>
+                <span className={styles.attachmentName}>
+                  {file.isMapSelection ? "Map Selection" : file.name}
+                </span>
                 <span className={styles.attachmentDetail}>
-                  {formatFileSize(file.size)}
+                  {file.isMapSelection && file.areaKm2
+                    ? `${file.areaKm2} km²`
+                    : formatFileSize(file.size)}
                 </span>
               </span>
             )}

@@ -1,20 +1,27 @@
 .title {
-  color: var(--primary-color);
+  color: var(--accent-primary, var(--primary-color));
+}
+
+.dateInput {
+  background-color: var(--input-bg, #ffffff);
+  color: var(--text-primary, #000000);
+  border-color: var(--input-border, #dee2e6);
 }
 
 .dateInput:focus {
   border-color: var(--secondary-color);
-  box-shadow: 0 0 0 0.15rem rgba(110, 193, 228, 0.25);
+  box-shadow: 0 0 0 0.15rem rgba(56, 189, 248, 0.25);
+  background-color: var(--input-bg, #ffffff);
+  color: var(--text-primary, #000000);
 }
 
-/* Bootstrap's primary button, recolored with your palette */
 .confirmBtn {
   --bs-btn-bg: var(--primary-color);
   --bs-btn-border-color: var(--primary-color);
-  --bs-btn-hover-bg: #00264a;
-  --bs-btn-hover-border-color: #00264a;
-  --bs-btn-active-bg: #00264a;
-  --bs-btn-active-border-color: #00264a;
+  --bs-btn-hover-bg: var(--accent-primary-hover, #0284c7);
+  --bs-btn-hover-border-color: var(--accent-primary-hover, #0284c7);
+  --bs-btn-active-bg: var(--accent-primary-hover, #0284c7);
+  --bs-btn-active-border-color: var(--accent-primary-hover, #0284c7);
   --bs-btn-disabled-bg: var(--primary-color);
   --bs-btn-disabled-border-color: var(--primary-color);
 }

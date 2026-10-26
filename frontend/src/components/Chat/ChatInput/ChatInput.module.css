@@ -1,8 +1,9 @@
 .inputBar {
   flex-shrink: 0;
-  padding: 16px 16px 4px;
-  background-color: var(--white-color);
-  border-top: 1px solid #dee2e6;
+  padding: 16px 16px 8px;
+  background-color: var(--bg-surface, var(--white-color));
+  border-top: 1px solid var(--border-color, #dee2e6);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .textField {
@@ -13,11 +14,17 @@
   border-radius: 20px;
   font-size: 0.95rem;
   padding: 10px 16px;
+  background-color: var(--input-bg, #ffffff);
+  color: var(--text-primary, #000000);
+  border: 1px solid var(--input-border, #dee2e6);
+  transition: all 0.2s ease;
 }
 
 .textField:focus {
-  border-color: var(--secondary-color);
-  box-shadow: 0 0 0 0.15rem rgba(110, 193, 228, 0.25);
+  border-color: var(--secondary-color, #38bdf8);
+  box-shadow: 0 0 0 0.15rem rgba(56, 189, 248, 0.25);
+  background-color: var(--input-bg, #ffffff);
+  color: var(--text-primary, #000000);
 }
 
 .sendBtn {
@@ -27,19 +34,30 @@
   border: none;
   border-radius: 50%;
   background-color: var(--primary-color);
-  color: var(--white-color);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+}
+
+.sendBtn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: scale(1.04);
 }
 
 .sendBtn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
 }
+
 /* While the agent is working the same button cancels the request */
 .stopBtn {
-  background-color: #dc3545;
+  background-color: var(--accent-danger, #dc3545);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.35);
 }
 
 .stopBtn:hover {
@@ -52,22 +70,22 @@
   align-items: flex-start;
   gap: 12px;
   min-height: 16px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .hint {
   flex: 1;
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--text-muted, #6c757d);
 }
 
 .counter {
   flex-shrink: 0;
   font-size: 0.7rem;
-  color: #6c757d;
+  color: var(--text-muted, #6c757d);
 }
 
 .counterWarn {
-  color: #dc3545;
+  color: var(--accent-danger, #dc3545);
   font-weight: 600;
 }

@@ -1,7 +1,7 @@
 import { DATE_MODAL_ID } from "../../../config/constants";
 import styles from "./PlusMenu.module.css";
 
-const PlusMenu = ({ onAttachFile , disabled}) => {
+const PlusMenu = ({ onAttachFile, onSelectOnMap, disabled }) => {
   // L1 => States & Global Data
   // L2 => Effects
   // L3 => Handlers
@@ -13,7 +13,7 @@ const PlusMenu = ({ onAttachFile , disabled}) => {
         className={styles.plusBtn}
         data-bs-toggle="dropdown"
         aria-expanded="false"
-        aria-label="Add file or date"
+        aria-label="Add file, date or select on map"
         disabled={disabled}
       >
         <i className="fa-solid fa-plus"></i>
@@ -39,6 +39,16 @@ const PlusMenu = ({ onAttachFile , disabled}) => {
           >
             <i className={`fa-solid fa-calendar-days ${styles.menuIcon}`}></i>
             Choose date
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            className={`dropdown-item d-flex align-items-center gap-2 ${styles.menuItem}`}
+            onClick={onSelectOnMap}
+          >
+            <i className={`fa-solid fa-draw-polygon ${styles.menuIcon}`}></i>
+            Select on map
           </button>
         </li>
       </ul>

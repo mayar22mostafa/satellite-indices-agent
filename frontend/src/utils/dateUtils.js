@@ -39,3 +39,23 @@ export const validateDateSelection = ({ mode, from, to }) => {
   }
   return null;
 };
+
+// Formats timestamp for sidebar chat list (e.g. "10:30 AM", "Yesterday", "Oct 26")
+export const formatChatHistoryDate = (timestamp) => {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  const now = new Date();
+
+  const isToday = date.toDateString() === now.toDateString();
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+};

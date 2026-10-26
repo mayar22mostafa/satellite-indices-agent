@@ -43,7 +43,9 @@ const DatePickerModal = ({ value, onConfirm }) => {
   };
 
   const handleConfirm = () => {
-    onConfirm({ from, to: mode === "range" ? to : from });
+    const isRange = mode === "range" && from && to && from !== to;
+    const formattedText = isRange ? `from ${from} to ${to}` : `on ${from}`;
+    onConfirm({ from, to: mode === "range" ? to : from, formattedText });
   };
 
   // L4 => JSX

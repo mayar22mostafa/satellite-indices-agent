@@ -67,6 +67,7 @@ const ChatPage = () => {
         isOpen={isSidebarOpen}
         onNewChat={handleNewChat}
         needsConfirm={hasUserMessages}
+        onCloseSidebar={handleCloseSidebar}
       />
       <NewChatModal onConfirm={handleNewChat} />
       {isSidebarOpen && (

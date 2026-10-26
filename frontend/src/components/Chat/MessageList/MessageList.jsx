@@ -4,7 +4,7 @@ import {
   selectStatus,
   selectUploadPercent,
 } from "../../../store/chatSlice";
-import MessageBubble from "../../UI/MessageBubble/MessageBubble";
+import MessageRenderer from "../MessageRenderer/MessageRenderer";
 import TypingIndicator from "../../UI/TypingIndicator/TypingIndicator";
 import styles from "./MessageList.module.css";
 
@@ -23,6 +23,7 @@ const MessageList = () => {
   // Follow new messages: always after the user's own, only if near the bottom otherwise
   useEffect(() => {
     const el = listRef.current;
+    if (!el) return;
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === "user" || isNearBottomRef.current) {
       el.scrollTop = el.scrollHeight;
@@ -32,6 +33,7 @@ const MessageList = () => {
   // L3 => Handlers
   const handleScroll = () => {
     const el = listRef.current;
+    if (!el) return;
     isNearBottomRef.current =
       el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
   };
@@ -45,14 +47,11 @@ const MessageList = () => {
       aria-live="polite"
       onScroll={handleScroll}
     >
-      {messages.map((message) => (
-        <MessageBubble
+      {messages.map((message, index) => (
+        <MessageRenderer
           key={message.id}
-          role={message.role}
-          text={message.text}
-          createdAt={message.createdAt}
-          file={message.file}
-          date={message.date}
+          message={message}
+          isLatest={index === messages.length - 1}
         />
       ))}
       {isWaiting && <TypingIndicator phase={status} percent={uploadPercent} />}
