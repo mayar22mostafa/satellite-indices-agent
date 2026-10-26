@@ -24,11 +24,11 @@ from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from shapely.ops import unary_union
 from shapely.validation import explain_validity, make_valid
 
-from .settings import get_settings
+#from .settings import get_settings
 
 WGS84 = CRS.from_epsg(4326)
 EQUAL_AREA = CRS.from_epsg(6933)  # World Cylindrical Equal Area, metres
-
+MAX_AOI_AREA_KM2 = 100_000
 
 class AOIError(ValueError):
     """Raised when an area file cannot be used. The message explains why."""
@@ -263,7 +263,12 @@ def _build_aoi(
     area_km2 = _area_km2(geometry)
     if area_km2 <= 0:
         raise AOIError("The area is zero.")
-    limit = max_area_km2 if max_area_km2 is not None else get_settings().max_area_km2
+    limit = (
+        max_area_km2
+       if max_area_km2 is not None
+       else MAX_AOI_AREA_KM2
+         )
+  
     if area_km2 > limit:
         raise AOIError(
             f"The area is {area_km2:,.0f} km2, above the limit of "
