@@ -23,16 +23,46 @@ and deterministic tools on Google Earth Engine that compute satellite indices
 - `docs/`: architecture and decision records
 - `data/`: small sample areas only (not uploaded)
 
-## How to run the AI service
+## Setup (AI service)
 
+**You need:** Python 3.12, a Google Earth Engine Cloud project (Earth Engine API enabled), and a Groq API key.
+
+> ⚠️ The registry module (`ai_service/app/registry/`) is pending merge. Until it lands, the service can't start from a fresh clone.
+
+**Option A: uv (recommended)**
 ```bash
+git clone https://github.com/mayar22mostafa/satellite-indices-agent.git
+cd satellite-indices-agent
 uv sync
 source .venv/bin/activate
-python -c "import ee; ee.Authenticate()"
-python -m ai_service.app.analysis.pipeline --aoi cairo_box --index NDVI
 ```
 
-Needs a `.env` file (copy `.env.example`) with `EE_PROJECT` set, and an area file in `data/aoi/`.
+**Option B: pip**
+```bash
+git clone https://github.com/mayar22mostafa/satellite-indices-agent.git
+cd satellite-indices-agent
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Then (both options):**
+```bash
+cp .env.example .env                              # then fill in your values
+python -c "import ee; ee.Authenticate()"          # log in to Earth Engine once
+uvicorn ai_service.app.api.main:app --port 8000   # start the API
+```
+Open http://localhost:8000/docs to see and try the endpoints.
+
+**Check that everything works** (server running, in a second terminal):
+```bash
+python ai_service/tests/smoke_api.py
+```
+
+**When you add a package:** `uv add <package>`, then regenerate the pip file so both stay in sync:
+```bash
+uv export --no-hashes --no-dev --no-emit-project -o requirements.txt
+```
 
 ## Working rules
 
