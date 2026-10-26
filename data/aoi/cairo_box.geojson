@@ -1,0 +1,19 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "cairo_test_box" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [31.18, 30.019213],
+          [31.283874, 30.019213],
+          [31.283874, 30.112812],
+          [31.18, 30.112812],
+          [31.18, 30.019213]
+        ]]
+      }
+    }
+  ]
+}

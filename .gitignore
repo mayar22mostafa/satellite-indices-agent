@@ -27,4 +27,6 @@ build/
 *.tiff
 data/*
 !data/.gitkeep
+!data/aoi/
+data/aoi/*
 !data/aoi/cairo_box.geojson
