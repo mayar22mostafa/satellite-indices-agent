@@ -1,12 +1,15 @@
 """HTTP API of the AI service. The Node.js backend calls these endpoints."""
 
 import json
+from unittest import result
+from unittest import result
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
+from numpy.strings import index
 from pydantic import BaseModel, Field
 from pydantic_ai.exceptions import AgentRunError
 
@@ -15,8 +18,7 @@ from ..agent.schemas import AnalysisPlan
 from ..analysis.pipeline import run_fixed_pipeline
 from ..analysis.tools import AOI_DIR, init_earth_engine
 from ..registry.aoi import AOIError, aoi_from_geojson_bytes
-
-
+from ..analysis.explain import explain_results
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_earth_engine()          # connect to Earth Engine once, when the server starts
@@ -154,6 +156,8 @@ def approve_plan(plan_id: str):
         if error:
             errors[index] = error
         else:
+            result["explain_results"] = explain_results(
+                index, result, plan.model_dump(mode="json"))
             results[index] = result
 
     if not results:
