@@ -273,7 +273,7 @@ def compute_statistics(ctx: RunContext, result_id: str) -> dict:
 
     return {"result_id": result_id, "index": band,
             "mean": get("mean"), "min": get("min"), "max": get("max"), "std": get("stdDev"),
-            "valid_pixel_pct": round(100 * valid / all_pixels, 1), "pixel_size_m": scale}
+            "valid_pixel_pct": round(min(100.0, 100 * valid / all_pixels), 1),}
 
 
 @safe_tool
