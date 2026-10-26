@@ -1,3 +1,8 @@
+require("dotenv").config();
+const { testConnection } = require("./config/db");
+
+testConnection();
+
 const express = require("express");
 const cors = require("cors");
 const globalErrorHandler = require("./middlewares/globalErrorHandler");

@@ -17,7 +17,7 @@ const chatSchema = Joi.object({
     .iso()
     .optional(),
 
-  conversationId: Joi.string()
+  session_id: Joi.string()
     .allow("", null)
     .optional(),
 });

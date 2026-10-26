@@ -15,10 +15,10 @@ const validateChat = (req, res, next) => {
 };
 
 const validateDateSelection = (req, res, next) => {
-  const { date, startDate, endDate, conversationId } = req.body;
+  const { date, startDate, endDate, session_id } = req.body;
 
     // Case 1: Existing conversation
-  if (conversationId) {
+  if (session_id) {
     return next();
   } 
 
@@ -53,25 +53,17 @@ const validateDateSelection = (req, res, next) => {
   });
 };
 
-const validateGeoJSONFile = (req, res, next) => {
 
-    const { conversationId } = req.body;
+const validateGeoJSONFile = (req, res, next) => {
+  const { session_id } = req.body;
 
   // Existing conversation: file is optional
-  if (conversationId && !req.file) {
+  if (session_id && !req.file) {
     return next();
   }
 
   // New conversation: file is required
-  if (!conversationId && !req.file) {
-    return res.status(400).json({
-      message: "GeoJSON file is required",
-    });
-  }
-
-
-  // Case 2: New conversation - file is required
-  if (!req.file) {
+  if (!session_id && !req.file) {
     return res.status(400).json({
       message: "GeoJSON file is required",
     });
@@ -93,7 +85,6 @@ const validateGeoJSONFile = (req, res, next) => {
 
   try {
     const fileContent = req.file.buffer.toString("utf-8");
-
     const geojson = JSON.parse(fileContent);
 
     if (!gjv.valid(geojson)) {
@@ -102,50 +93,43 @@ const validateGeoJSONFile = (req, res, next) => {
       });
     }
 
-    if (geojson.type !== "Feature") {
+    const allowedTypes = [
+      "FeatureCollection",
+      "Feature",
+      "Polygon",
+      "MultiPolygon",
+    ];
+
+    if (!allowedTypes.includes(geojson.type)) {
       return res.status(400).json({
-        message: "GeoJSON must be a Feature",
+        message:
+          "GeoJSON must be a FeatureCollection, Feature, Polygon, or MultiPolygon",
       });
     }
 
-    if (!geojson.geometry) {
-      return res.status(400).json({
-        message: "GeoJSON geometry is required",
-      });
+    // Extract geometries to validate polygon types
+    let geometries = [];
+
+    if (geojson.type === "FeatureCollection") {
+      geometries = geojson.features.map((feature) => feature.geometry);
+    } else if (geojson.type === "Feature") {
+      geometries = [geojson.geometry];
+    } else {
+      geometries = [geojson];
     }
-
-    if (geojson.geometry.type !== "Polygon") {
-      return res.status(400).json({
-        message: "Geometry must be a Polygon",
-      });
-    }
-
-  const coordinates = geojson.geometry.coordinates;
-
-if (
-      !Array.isArray(coordinates) ||
-      coordinates.length === 0 ||
-      !Array.isArray(coordinates[0]) ||
-      coordinates[0].length < 4
-    ) {
-      return res.status(400).json({
-        message: "Polygon coordinates are missing or insufficient",
-      });
-    }
-
-    const ring = coordinates[0];
-    const firstPoint = ring[0];
-    const lastPoint = ring[ring.length - 1];
 
     if (
-      firstPoint[0] !== lastPoint[0] ||
-      firstPoint[1] !== lastPoint[1]
+      geometries.length === 0 ||
+      geometries.some(
+        (geometry) =>
+          !geometry ||
+          !["Polygon", "MultiPolygon"].includes(geometry.type)
+      )
     ) {
       return res.status(400).json({
-        message: "Polygon ring must be closed",
+        message: "AOI must contain Polygon or MultiPolygon geometries",
       });
     }
-
 
     req.geojson = geojson;
 
@@ -156,6 +140,8 @@ if (
     });
   }
 };
+
+
 
 module.exports = {
   validateChat,
