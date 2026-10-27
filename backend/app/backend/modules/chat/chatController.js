@@ -48,7 +48,6 @@ const approvePlan = async (req, res, next) => {
   }
 };
 
-
 const getPlanResult = async (req, res, next) => {
   try {
     const { planId } = req.params;
@@ -67,7 +66,6 @@ const getPlanResult = async (req, res, next) => {
   }
 };
 
-
 const subscribeToPlanEvents = (req, res, next) => {
   try {
     const { planId } = req.params;
@@ -84,10 +82,33 @@ const subscribeToPlanEvents = (req, res, next) => {
   }
 };
 
+const deleteChat = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+
+    if (!conversationId) {
+      return res.status(400).json({
+        status: "error",
+        message: "Conversation ID is required",
+      });
+    }
+
+    const result = await chatService.deleteChat(conversationId);
+
+    return res.status(200).json({
+      status: "success",
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 module.exports = {
   sendMessage,
   approvePlan,
   getPlanResult,
   subscribeToPlanEvents,
+  deleteChat,
 };
