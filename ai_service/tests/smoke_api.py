@@ -38,7 +38,9 @@ def post(path: str, body: dict | None = None, tries: int = 2) -> httpx.Response:
 r = client.get("/health")
 check("GET /health -> 200 ok", r.status_code == 200 and r.json() == {"status": "ok"}, r.text)
 paths = set(client.get("/openapi.json").json()["paths"])
-check("exactly 3 endpoints", paths == {"/health", "/plans", "/plans/{plan_id}/approve"}, sorted(paths))
+check("exactly 4 endpoints",
+      paths == {"/health", "/plans", "/plans/{plan_id}/approve", "/plans/{plan_id}/result"},
+      sorted(paths))
 
 # ---- 2. bad input gets clear errors (no Groq or Earth Engine needed) ----
 r = post("/plans", {"message": "NDVI last month"})
@@ -71,12 +73,31 @@ check("follow-up keeps the dates",
 check("same session_id", second["session_id"] == first["session_id"])
 check("new plan_id", second["plan_id"] != first["plan_id"])
 
-# ---- 4. approve: real computation for both indices ----
+# ---- 4. approve (async): 202 now, then poll GET /result ----
+plan_id = second["plan_id"]
+r = client.get(f"/plans/{plan_id}/result")
+check("result before approve -> 409", r.status_code == 409, r.text)
+r = client.get("/plans/plan_fake/result")
+check("result of unknown plan -> 404", r.status_code == 404, r.text)
+
 start = time.time()
-r = post(f"/plans/{second['plan_id']}/approve")
-approved = r.json()
-print(f"      (approve took {time.time() - start:.0f} s)")
-check("approve -> 200 Feature", r.status_code == 200 and approved.get("type") == "Feature", r.text[:300])
+r = client.post(f"/plans/{plan_id}/approve")
+check("approve -> 202 running, immediately",
+      r.status_code == 202 and r.json().get("status") == "running" and time.time() - start < 3, r.text)
+
+seen_progress = False
+while True:
+    body = client.get(f"/plans/{plan_id}/result").json()
+    if body.get("status") != "running" or time.time() - start > 300:
+        break
+    seen_progress = seen_progress or "progress" in body
+    time.sleep(2)
+print(f"      (analysis took {time.time() - start:.0f} s)")
+check("progress reported while running", seen_progress)
+check("status ends as done", body.get("status") == "done", str(body)[:300])
+
+approved = body.get("result", {})
+check("result is a Feature", approved.get("type") == "Feature", str(approved)[:300])
 results = approved.get("properties", {}).get("results", {})
 check("results for NDVI and NDWI", set(results) == {"NDVI", "NDWI"}, list(results))
 for index, res in results.items():
@@ -86,10 +107,10 @@ for index, res in results.items():
     check(f"{index}: valid_pixel_pct between 0 and 100", 0 <= valid <= 100, valid)
     check(f"{index}: map tile_url present", "{z}" in res.get("create_map_layer", {}).get("tile_url", ""))
 
-start = time.time()
-r = post(f"/plans/{second['plan_id']}/approve")
-elapsed = time.time() - start
-check("approve twice -> same answer, instantly", r.json() == approved and elapsed < 3, f"{elapsed:.1f} s")
+r = client.post(f"/plans/{plan_id}/approve")
+check("approve again -> no restart, already done", r.json().get("status") == "done", r.text)
+r = client.get(f"/plans/{plan_id}/result")
+check("result again -> same answer", r.json().get("result") == approved)
 
 # ---- 5. unsupported request -> question, not a plan ----
 r = post("/plans", {"message": "what about land surface temperature?", "aoi": AOI})
