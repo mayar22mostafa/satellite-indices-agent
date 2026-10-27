@@ -10,6 +10,7 @@ const {
   updateAnalysisPlanStatus,
   saveMessage,
   saveAnalysisPlan,
+  deleteConversation,
 } = require("./chatRepository");
 
 const { startPlanPolling } = require("./planPollingService");
@@ -95,8 +96,24 @@ const getPlanResultFromAgent = async (planId) => {
   return await getPlanResult(planId);
 };
 
+const deleteChat = async (conversationId) => {
+  const deletedConversation = await deleteConversation(conversationId);
+
+  if (!deletedConversation) {
+    const error = new Error("Chat not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return {
+    message: "Chat deleted successfully",
+    conversationId: deletedConversation.id,
+  };
+};
+
 module.exports = {
   sendMessage,
   approvePlan,
   getPlanResultFromAgent,
+  deleteChat,
 };

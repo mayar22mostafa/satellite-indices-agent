@@ -69,7 +69,6 @@ const saveAnalysisPlan = async ({
   return result.rows[0];
 };
 
-
 const updateAnalysisPlanStatus = async (planId, status, result) => {
   const resultJson =
     result === undefined ? null : JSON.stringify(result);
@@ -87,6 +86,16 @@ const updateAnalysisPlanStatus = async (planId, status, result) => {
   return queryResult.rows[0] || null;
 };
 
+const deleteConversation = async (conversationId) => {
+  const result = await pool.query(
+    `DELETE FROM conversations
+     WHERE id = $1
+     RETURNING id`,
+    [conversationId]
+  );
+
+  return result.rows[0] || null;
+};
 
 
 module.exports = {
@@ -95,5 +104,6 @@ module.exports = {
   updateConversationSessionId,
   saveMessage,
   saveAnalysisPlan,
-  updateAnalysisPlanStatus
+  updateAnalysisPlanStatus,
+  deleteConversation,
 };
