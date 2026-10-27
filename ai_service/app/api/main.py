@@ -5,6 +5,10 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import date
 
+import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
@@ -28,7 +32,9 @@ app = FastAPI(title="Satellite Indices AI Service", version="0.2.0", lifespan=li
 # In-memory stores (MVP): everything is lost when the service restarts.
 SESSIONS: dict[str, dict] = {}   # session_id -> {"aoi": GeoJSON, "deps": PlannerDeps, "history": list}
 PLANS: dict[str, dict] = {}      # plan_id -> {"session_id": str, "plan": AnalysisPlan, "result": dict | None}
-
+EXECUTOR = ThreadPoolExecutor(max_workers=2)   # at most 2 analyses run at the same time
+LOCK = threading.Lock()                        # stops a double click from starting two runs
+logger = logging.getLogger("ai_service")
 
 # ---------------- request bodies ----------------
 
@@ -125,43 +131,85 @@ def create_plan(req: PlanRequest):
 
     if isinstance(output, AnalysisPlan):
         plan_id = f"plan_{uuid.uuid4().hex[:8]}"
-        PLANS[plan_id] = {"session_id": session_id, "plan": output, "result": None}
+        PLANS[plan_id] = {"session_id": session_id, "plan": output,
+                          "status": None, "progress": None, "result": None, "error": None}
         return {"session_id": session_id, "type": "plan", "plan_id": plan_id,
                 "plan": output.model_dump(mode="json")}
     return {"session_id": session_id, "type": "question", **output.model_dump()}
 
 
-@app.post("/plans/{plan_id}/approve")
+def _run_plan(plan_id: str) -> None:
+    """Background job: run every index of an approved plan and record the outcome."""
+    entry = PLANS[plan_id]
+    try:
+        session = SESSIONS[entry["session_id"]]
+        plan: AnalysisPlan = entry["plan"]
+        total = len(plan.indices)
+        results, errors = {}, {}
+        for i, index in enumerate(plan.indices):
+            entry["progress"] = {"done": i, "total": total, "current": index}
+            result = run_fixed_pipeline(
+                session["deps"].aoi_id, index, plan.start_date.isoformat(), plan.end_date.isoformat(),
+                max_cloud=plan.max_cloud, cloud_mask=plan.cloud_mask,
+                image_date=plan.image_date.isoformat() if plan.image_date else None,
+            )
+            error = _first_error(result)
+            if error:
+                errors[index] = error
+            else:
+                results[index] = result
+        entry["progress"] = {"done": total, "total": total, "current": None}
+
+        if results:
+            entry["result"] = _feature(session["aoi"], {
+                "session_id": entry["session_id"], "plan_id": plan_id,
+                "plan": plan.model_dump(mode="json"), "results": results, "errors": errors,
+            })
+            entry["status"] = "done"          # set LAST, after the result is ready
+        else:
+            entry["error"] = errors
+            entry["status"] = "failed"
+    except Exception as e:                    # never leave a job stuck on "running"
+        logger.exception("Plan %s crashed", plan_id)
+        entry["error"] = {"service": f"Unexpected error: {type(e).__name__}"}
+        entry["status"] = "failed"
+
+
+def _status_body(plan_id: str, entry: dict) -> dict:
+    """What approve and GET /result return: the status, plus progress, result or error."""
+    body = {"plan_id": plan_id, "session_id": entry["session_id"], "status": entry["status"]}
+    if entry["status"] == "running":
+        body["progress"] = entry["progress"]
+    elif entry["status"] == "done":
+        body["result"] = entry["result"]
+    elif entry["status"] == "failed":
+        body["error"] = entry["error"]
+    return body
+
+
+@app.post("/plans/{plan_id}/approve", status_code=202)
 def approve_plan(plan_id: str):
-    """The engineer approved: run exactly the saved plan, one pipeline run per index."""
+    """Start the approved plan in the background and answer at once."""
     entry = PLANS.get(plan_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Unknown plan_id (expired or the service "
                             "restarted). Ask the agent for a new plan.")
-    if entry["result"] is not None:
-        return entry["result"]                     # approved before: same answer, no recompute
+    with LOCK:
+        if entry["status"] is None:                       # first approve: start the job
+            indices = entry["plan"].indices
+            entry["progress"] = {"done": 0, "total": len(indices), "current": indices[0]}
+            entry["status"] = "running"
+            EXECUTOR.submit(_run_plan, plan_id)
+    return _status_body(plan_id, entry)                   # later approves: just the status
 
-    session = SESSIONS[entry["session_id"]]
-    plan: AnalysisPlan = entry["plan"]
-    results, errors = {}, {}
-    for index in plan.indices:
-        result = run_fixed_pipeline(
-            session["deps"].aoi_id, index, plan.start_date.isoformat(), plan.end_date.isoformat(),
-            max_cloud=plan.max_cloud, cloud_mask=plan.cloud_mask,
-            image_date=plan.image_date.isoformat() if plan.image_date else None,
-        )
-        error = _first_error(result)
-        if error:
-            errors[index] = error
-        else:
-            results[index] = result
 
-    if not results:
-        raise HTTPException(status_code=422, detail=errors)
-
-    response = _feature(session["aoi"], {
-        "session_id": entry["session_id"], "plan_id": plan_id,
-        "plan": plan.model_dump(mode="json"), "results": results, "errors": errors,
-    })
-    entry["result"] = response
-    return response
+@app.get("/plans/{plan_id}/result")
+def get_result(plan_id: str):
+    """Poll this every 2-3 s: running (with progress) -> done (with result) or failed (with error)."""
+    entry = PLANS.get(plan_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Unknown plan_id (expired or the service "
+                            "restarted). Ask the agent for a new plan.")
+    if entry["status"] is None:
+        raise HTTPException(status_code=409, detail="Approve the plan before asking for its result.")
+    return _status_body(plan_id, entry)
