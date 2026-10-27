@@ -5,13 +5,14 @@
 """
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
 
 import httpx
 
-BASE = "http://localhost:8000"
+BASE = os.getenv("API_BASE", "http://localhost:8000")
 AOI = json.loads(Path("data/aoi/cairo_box.geojson").read_text())
 DATES = {"start_date": "2026-09-01", "end_date": "2026-09-30"}
 client = httpx.Client(base_url=BASE, timeout=180)
@@ -39,8 +40,9 @@ def post(path: str, body: dict | None = None, tries: int = 2) -> httpx.Response:
 r = client.get("/health")
 check("GET /health -> 200 ok", r.status_code == 200 and r.json() == {"status": "ok"}, r.text)
 paths = set(client.get("/openapi.json").json()["paths"])
-check("exactly 4 endpoints",
-      paths == {"/health", "/plans", "/plans/{plan_id}/approve", "/plans/{plan_id}/result"},
+check("exactly 5 endpoints",
+      paths == {"/health", "/plans", "/plans/{plan_id}/approve", "/plans/{plan_id}/result",
+                "/plans/{plan_id}/explanation"},
       sorted(paths))
 
 # ---- 2. bad input gets clear errors (no Groq or Earth Engine needed) ----
@@ -86,7 +88,7 @@ check("follow-up keeps the dates",
 check("same session_id", second["session_id"] == first["session_id"])
 check("new plan_id", second["plan_id"] != first["plan_id"])
 
-# ---- 4. approve (async): 202 now, then poll GET /result ----
+# ---- 4a. approve (async): 202 now, then poll GET /result ----
 plan_id = second["plan_id"]
 r = client.get(f"/plans/{plan_id}/result")
 check("result before approve -> 409", r.status_code == 409, r.text)
@@ -127,6 +129,24 @@ r = client.post(f"/plans/{plan_id}/approve")
 check("approve again -> no restart, already done", r.json().get("status") == "done", r.text)
 r = client.get(f"/plans/{plan_id}/result")
 check("result again -> same answer", r.json().get("result") == approved)
+
+# ---- 4b. explanation (separate endpoint) ----
+r = client.get(f"/plans/{first['plan_id']}/explanation")
+check("explanation before the analysis is done -> 409", r.status_code == 409, r.text)
+r = client.get("/plans/plan_fake/explanation")
+check("explanation of unknown plan -> 404", r.status_code == 404, r.text)
+
+r = client.get(f"/plans/{plan_id}/explanation")
+explained = r.json()
+expl = explained.get("explanations", {})
+check("explanation -> 200 for NDVI and NDWI", r.status_code == 200 and set(expl) == {"NDVI", "NDWI"},
+      r.text[:300])
+check("each explanation has a summary and data_quality",
+      all("summary" in e and "data_quality" in e for e in expl.values()), expl)
+start = time.time()
+r = client.get(f"/plans/{plan_id}/explanation")
+check("explanation again -> same answer, instantly",
+      r.json() == explained and time.time() - start < 3, f"{time.time() - start:.1f} s")
 
 # ---- 5. unsupported request -> question, not a plan ----
 r = post("/plans", {"message": "what about land surface temperature?", "aoi": AOI, **DATES})

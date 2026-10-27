@@ -18,6 +18,7 @@ from ..agent.planner import PlannerDeps, plan_turn
 from ..agent.schemas import AnalysisPlan
 from ..analysis.pipeline import run_fixed_pipeline
 from ..analysis.tools import AOI_DIR, init_earth_engine
+from ..analysis.explain import explain_results
 from ..registry.aoi import AOIError, aoi_from_geojson_bytes
 
 
@@ -169,8 +170,8 @@ def create_plan(req: PlanRequest):
 
     if isinstance(output, AnalysisPlan):
         plan_id = f"plan_{uuid.uuid4().hex[:8]}"
-        PLANS[plan_id] = {"session_id": session_id, "plan": output,
-                          "status": None, "progress": None, "result": None, "error": None}
+        PLANS[plan_id] = {"session_id": session_id, "plan": output, "status": None,
+                          "progress": None, "result": None, "error": None, "explanation": None}
         return {"session_id": session_id, "type": "plan", "plan_id": plan_id,
                 "plan": output.model_dump(mode="json")}
     return {"session_id": session_id, "type": "question", **output.model_dump()}
@@ -251,3 +252,23 @@ def get_result(plan_id: str):
     if entry["status"] is None:
         raise HTTPException(status_code=409, detail="Approve the plan before asking for its result.")
     return _status_body(plan_id, entry)
+
+
+@app.get("/plans/{plan_id}/explanation")
+def get_explanation(plan_id: str):
+    """Plain-language explanation of each index of a finished plan. Computed once, then reused."""
+    entry = PLANS.get(plan_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Unknown plan_id (expired or the service "
+                            "restarted). Ask the agent for a new plan.")
+    if entry["status"] != "done":
+        raise HTTPException(status_code=409, detail="The analysis must be finished before "
+                            "it can be explained.")
+
+    if entry["explanation"] is None:
+        plan_json = entry["plan"].model_dump(mode="json")
+        results = entry["result"]["properties"]["results"]
+        entry["explanation"] = {index: explain_results(index, steps, plan_json)
+                                for index, steps in results.items()}
+    return {"plan_id": plan_id, "session_id": entry["session_id"],
+            "explanations": entry["explanation"]}
