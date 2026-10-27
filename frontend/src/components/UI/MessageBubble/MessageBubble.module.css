@@ -20,8 +20,9 @@
 }
 
 .bubbleUser {
-  background-color: var(--primary-color);
-  color: #ffffff;
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
   border-bottom-right-radius: 4px;
 }
 

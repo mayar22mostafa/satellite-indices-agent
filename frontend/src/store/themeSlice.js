@@ -3,7 +3,7 @@ import { createSlice } from "@reduxjs/toolkit";
 const getSavedTheme = () => {
   try {
     const saved = localStorage.getItem("egsa-theme");
-    if (saved === "light" || saved === "dark") {
+    if (saved === "dark" || saved === "light") {
       return saved;
     }
   } catch {

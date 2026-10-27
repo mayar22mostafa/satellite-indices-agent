@@ -21,8 +21,8 @@
 }
 
 .textField:focus {
-  border-color: var(--secondary-color, #38bdf8);
-  box-shadow: 0 0 0 0.15rem rgba(56, 189, 248, 0.25);
+  border-color: var(--accent-primary, #22c7ee);
+  box-shadow: 0 0 0 0.15rem rgba(34, 199, 238, 0.2);
   background-color: var(--input-bg, #ffffff);
   color: var(--text-primary, #000000);
 }
@@ -33,14 +33,14 @@
   height: 42px;
   border: none;
   border-radius: 50%;
-  background-color: var(--primary-color);
-  color: #ffffff;
+  background-color: var(--accent-primary);
+  color: #071014;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+  box-shadow: 0 4px 12px rgba(34, 199, 238, 0.22);
 }
 
 .sendBtn:hover:not(:disabled) {

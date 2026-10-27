@@ -2,11 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   setApprovingPlan,
+  markPlanApproved,
   appendAnalysisResult,
   selectApprovingPlanId,
   selectChatKey,
 } from "../../../store/chatSlice";
-import { approvePlan, getErrorMessage } from "../../../services/api";
+import {
+  approvePlan,
+  watchPlan,
+  buildAnalysisMessage,
+  getErrorMessage,
+} from "../../../services/api";
 import { getIndexConfig } from "../../../config/indices";
 import styles from "./PlanCard.module.css";
 
@@ -15,19 +21,31 @@ const PlanCard = ({ message, isLatest }) => {
   const chatKey = useSelector(selectChatKey);
   const approvingPlanId = useSelector(selectApprovingPlanId);
 
-  const planId = message.plan_id || message.plan?.id || message.id;
+  // Only the plan_id issued by the agent is valid for /approve (it is not the session id
+  // and not the local message id). null means the agent did not provide one.
+  const planId = message.plan_id || null;
   const plan = message.plan || {};
   const isApproved = Boolean(message.approved);
   const isCurrentlyApproving = approvingPlanId === planId;
 
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
-  const abortRef = useRef(null);
+  const [progressText, setProgressText] = useState("");
+  const abortRef = useRef(null); // the approve request
+  const streamRef = useRef(null); // the SSE stream that follows the analysis
 
   // Locking rule: Active ONLY while it is the latest message and not yet approved
   const isLocked = !isLatest || isApproved;
 
-  // 120s progress timer during approval
+  // Stop following the analysis when this card goes away (e.g. New Chat)
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      streamRef.current?.close();
+    };
+  }, []);
+
+  // Elapsed-time counter while the analysis is running
   useEffect(() => {
     if (!isCurrentlyApproving) return;
 
@@ -40,27 +58,44 @@ const PlanCard = ({ message, isLatest }) => {
   }, [isCurrentlyApproving]);
 
   const handleApprove = async () => {
-    if (isLocked || isCurrentlyApproving) return;
+    if (isLocked || isCurrentlyApproving || !planId) return;
 
     setErrorMessage("");
+    setElapsedSeconds(0);
+    setProgressText("Sending approval to the agent…");
     dispatch(setApprovingPlan(planId));
 
     const controller = new AbortController();
     abortRef.current = controller;
 
-    try {
-      const response = await approvePlan({
-        planId,
-        signal: controller.signal,
-      });
+    // Final states: show the result (or the failure) in the chat and unlock the input
+    const showFinal = (analysisMessage) => {
+      streamRef.current = null;
+      dispatch(appendAnalysisResult({ chatKey, planId, analysisMessage }));
+    };
 
-      dispatch(
-        appendAnalysisResult({
-          chatKey,
-          planId,
-          analysisMessage: response.message,
-        }),
-      );
+    try {
+      // The backend answers 202 right away; the analysis keeps running on the server
+      await approvePlan({ planId, signal: controller.signal });
+      dispatch(markPlanApproved(planId));
+      setProgressText("Analysis is running…");
+
+      streamRef.current = watchPlan(planId, {
+        onProgress: (update) => {
+          setProgressText(
+            update.message || `Analysis status: ${update.status ?? "Running"}…`,
+          );
+        },
+        onDone: (update) => showFinal(buildAnalysisMessage(update.result)),
+        onFailed: ({ message: reason }) =>
+          showFinal({
+            id: `${planId}-failed`,
+            role: "agent",
+            type: "text",
+            createdAt: Date.now(),
+            text: `The analysis failed: ${reason}`,
+          }),
+      });
     } catch (err) {
       setErrorMessage(getErrorMessage(err));
       dispatch(setApprovingPlan(null));
@@ -183,6 +218,13 @@ const PlanCard = ({ message, isLatest }) => {
         </div>
       )}
 
+      {!planId && !isApproved && (
+        <div className="alert alert-warning small py-2 px-3 mb-3" role="alert">
+          <i className="fa-solid fa-triangle-exclamation me-2"></i>
+          The agent did not return a plan ID, so this plan cannot be approved. Please rephrase your request.
+        </div>
+      )}
+
       {errorMessage && (
         <div className="alert alert-danger small py-2 px-3 mb-3" role="alert">
           <i className="fa-solid fa-triangle-exclamation me-2"></i>
@@ -193,19 +235,15 @@ const PlanCard = ({ message, isLatest }) => {
       {isCurrentlyApproving && (
         <div className={styles.loadingProgress} role="status" aria-live="polite">
           <div className={styles.progressBar}>
-            <div
-              className={styles.progressFill}
-              style={{
-                width: `${Math.min(100, Math.round((elapsedSeconds / 120) * 100))}%`,
-              }}
-            ></div>
+            {/* Duration is unknown, so the bar is a full "working" indicator, not a percentage */}
+            <div className={styles.progressFill} style={{ width: "100%" }}></div>
           </div>
           <div className={styles.loadingText}>
             <span>
               <i className="fa-solid fa-circle-notch fa-spin me-2"></i>
-              Querying Google Earth Engine…
+              {progressText || "Analysis is running…"}
             </span>
-            <span>{elapsedSeconds}s / 120s max</span>
+            <span>{elapsedSeconds}s</span>
           </div>
         </div>
       )}
@@ -214,7 +252,7 @@ const PlanCard = ({ message, isLatest }) => {
         <button
           type="button"
           className={styles.runBtn}
-          disabled={isLocked || isCurrentlyApproving}
+          disabled={isLocked || isCurrentlyApproving || !planId}
           onClick={handleApprove}
           aria-label={
             isApproved
