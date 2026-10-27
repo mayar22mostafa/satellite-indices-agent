@@ -16,8 +16,21 @@ export const DATE_MODAL_ID = "date-modal";
 // Extended message timeout duration (120 seconds) allowing inactive agents time to respond
 export const REQUEST_TIMEOUT_MS = 120000;
 
-// The /plans/{plan_id}/approve endpoint timeout is 120 seconds
+// POST /chat/plans/:planId/approve only hands the plan to the agent (HTTP 202);
+// the analysis itself is tracked afterwards through the SSE endpoint.
 export const APPROVE_TIMEOUT_MS = 120000;
+
+// Plan status values exactly as the backend sends them (capitalised).
+// "error" (lower case) is what the backend itself publishes when it cannot monitor a plan.
+export const PLAN_STATUS = {
+  RUNNING: "Running",
+  DONE: "Done",
+  FAILED: "Failed",
+  ERROR: "error",
+};
+
+// Consecutive SSE connection errors tolerated before the analysis is reported as lost
+export const MAX_SSE_ERRORS = 5;
 
 // After this many seconds the indicator tells the user it is taking longer
 export const SLOW_RESPONSE_SECONDS = 20;
