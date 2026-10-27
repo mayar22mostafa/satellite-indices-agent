@@ -1,4 +1,4 @@
-"""What the planner agent is allowed to answer: a plan to approve, or a question."""
+"""What the planner agent may answer, and the full plan the engineer approves."""
 
 from datetime import date
 from typing import Literal
@@ -8,24 +8,39 @@ from pydantic import BaseModel, Field, model_validator
 from ..registry import registry as reg
 
 # The allowed index names come from Somaya's registry (one source of truth).
-IndexName = Literal[tuple(sorted(reg.INDICES))]
+IndexName = Literal[tuple(sorted(reg.INDICES))]  # type: ignore
 
 
-class AnalysisPlan(BaseModel):
-    """A plan the engineer must approve before anything is computed."""
+class PlanCore(BaseModel):
+    """The parts of a plan that the agent chooses (shared by PlanChoice and AnalysisPlan)."""
 
-    indices: list[IndexName] = Field(# type: ignore
+    indices: list[IndexName] = Field(
         ..., min_length=1, description="Indices to compute, e.g. ['NDVI']")
-    start_date: date = Field(..., description="First day of the search window (YYYY-MM-DD)")
-    end_date: date = Field(..., description="Last day of the search window (YYYY-MM-DD)")
-    image_date: date | None = Field(
-        None, description="Only if the engineer asked for one exact day; otherwise null")
     max_cloud: float = Field(
         20, ge=0, le=100, description="Max cloud % of the image tile (default 20)")
     cloud_mask: bool = Field(True, description="Remove cloud pixels (keep true unless asked)")
     assumptions: list[str] = Field(
         default_factory=list,
-        description="Every choice you made that the engineer did not state, in plain words")
+        description="Every choice you made that the engineer did not state, in short plain sentences")
+
+
+class PlanChoice(PlanCore):
+    """The agent's answer. New dates ONLY if the engineer's message explicitly asks for them."""
+
+    new_start_date: date | None = Field(
+        None, description="Only if the message explicitly asks for a new date range: its first day. Otherwise null")
+    new_end_date: date | None = Field(
+        None, description="Only if the message explicitly asks for a new date range: its last day. Otherwise null")
+    new_image_date: date | None = Field(
+        None, description="Only if the message explicitly asks for one exact day. Otherwise null")
+
+
+class AnalysisPlan(PlanCore):
+    """The full plan the engineer approves: the agent's choice + the chat's dates (set by code)."""
+
+    start_date: date
+    end_date: date
+    image_date: date | None = None
 
     @model_validator(mode="after")
     def check_dates(self):
