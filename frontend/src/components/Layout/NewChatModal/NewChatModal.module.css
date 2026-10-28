@@ -1,12 +1,143 @@
-.title {
-  color: var(--accent-primary, var(--primary-color));
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.18s ease-out;
+}
+
+.modalDialog {
+  width: 100%;
+  max-width: 440px;
+  background: var(--bg-surface-elevated, #171717);
+  border: 1px solid var(--border-color-strong, #404040);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: scaleUp 0.2s ease-out;
+}
+
+.modalHeader {
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color, #292929);
+  background: var(--bg-surface, #080808);
+}
+
+.titleArea {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.headerIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(34, 199, 238, 0.12);
+  color: var(--accent-primary, #22c7ee);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.modalTitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary, #fafafa);
+  margin: 0;
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #a3a3a3);
+  font-size: 1.15rem;
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.closeBtn:hover {
+  color: var(--text-primary, #ffffff);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.modalBody {
+  padding: 1.25rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text-secondary, #d4d4d4);
+  background: var(--bg-surface-elevated, #171717);
+}
+
+.modalFooter {
+  padding: 0.9rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border-color, #292929);
+  background: var(--bg-surface, #080808);
+}
+
+.cancelBtn {
+  background: transparent;
+  border: 1px solid var(--border-color-strong, #404040);
+  color: var(--text-primary, #fafafa);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.5rem 1.1rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancelBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .confirmBtn {
-  --bs-btn-bg: var(--primary-color);
-  --bs-btn-border-color: var(--primary-color);
-  --bs-btn-hover-bg: var(--accent-primary-hover, #0284c7);
-  --bs-btn-hover-border-color: var(--accent-primary-hover, #0284c7);
-  --bs-btn-active-bg: var(--accent-primary-hover, #0284c7);
-  --bs-btn-active-border-color: var(--accent-primary-hover, #0284c7);
+  background: var(--primary-color, #22c7ee);
+  border: 1px solid var(--primary-color, #22c7ee);
+  color: #000000;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.5rem 1.25rem;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: all 0.2s ease;
+}
+
+.confirmBtn:hover {
+  background: var(--accent-primary-hover, #54d7f5);
+  border-color: var(--accent-primary-hover, #54d7f5);
+  transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }

@@ -28,12 +28,42 @@ api.interceptors.request.use((config) => {
 });
 
 // Builds the multipart form the backend expects (POST /chat/sendmsg).
-// Fields: message, geojson (file), date | startDate + endDate, session_id.
+// Fields: message, geojson (file), date | startDate + endDate, session_id, coordinates.
 // Optional fields are omitted rather than sent empty (the backend validates them strictly).
 // Do NOT set Content-Type here: the browser must add the multipart boundary itself.
-export const buildMessageForm = ({ text, file, date, conversationId }) => {
+export const buildMessageForm = ({
+  text,
+  file,
+  date,
+  conversationId,
+  coordinates,
+}) => {
   const form = new FormData();
-  form.append("message", text);
+
+  // If coordinates are defined (e.g. from map selection), format them as GeoJSON coordinates
+  // and ensure they are clearly defined in both the form payload and transparently for the agent
+  let outgoingMessage = text;
+  if (coordinates) {
+    const formattedCoords = Array.isArray(coordinates)
+      ? Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])
+        ? coordinates
+        : [coordinates]
+      : coordinates;
+    const coordsJson =
+      typeof formattedCoords === "string"
+        ? formattedCoords
+        : JSON.stringify(formattedCoords);
+
+    // Provide the coordinates field explicitly in the payload in GeoJSON format
+    form.append("coordinates", coordsJson);
+
+    // Include the coordinates transparently in the message for the agent
+    outgoingMessage = outgoingMessage
+      ? `${outgoingMessage}\n\n[Area Coordinates (GeoJSON Polygon)]: ${coordsJson}`
+      : `[Area Coordinates (GeoJSON Polygon)]: ${coordsJson}`;
+  }
+
+  form.append("message", outgoingMessage);
 
   if (file) {
     form.append("geojson", file); // the field must be named exactly "geojson"
@@ -186,10 +216,17 @@ export const sendMessage = async ({
   file,
   date,
   conversationId,
+  coordinates,
   signal,
   onUploadProgress,
 }) => {
-  const form = buildMessageForm({ text, file, date, conversationId });
+  const form = buildMessageForm({
+    text,
+    file,
+    date,
+    conversationId,
+    coordinates,
+  });
 
   let lastError;
   const maxRetries = 2;

@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from "react-redux";
-import { SIDEBAR_ID, NEW_CHAT_MODAL_ID } from "../../../config/constants";
+import { SIDEBAR_ID } from "../../../config/constants";
 import { toggleTheme, selectThemeMode } from "../../../store/themeSlice";
 import {
   selectSavedChats,
@@ -10,7 +10,7 @@ import {
 import { formatChatHistoryDate } from "../../../utils/dateUtils";
 import styles from "./Sidebar.module.css";
 
-const Sidebar = ({ isOpen, onNewChat, needsConfirm, onCloseSidebar }) => {
+const Sidebar = ({ isOpen, onNewChat }) => {
   // L1 => States & Global Data
   const dispatch = useDispatch();
   const themeMode = useSelector(selectThemeMode);
@@ -27,9 +27,6 @@ const Sidebar = ({ isOpen, onNewChat, needsConfirm, onCloseSidebar }) => {
   const handleSelectChat = (id) => {
     if (id === activeChatKey) return;
     dispatch(loadSavedChat(id));
-    if (onCloseSidebar) {
-      onCloseSidebar();
-    }
   };
 
   const handleDeleteChat = (e, id) => {
@@ -51,14 +48,12 @@ const Sidebar = ({ isOpen, onNewChat, needsConfirm, onCloseSidebar }) => {
         <span className="fw-semibold">EgSA Agent</span>
       </div>
 
-      {/* With messages on screen the button opens the confirmation modal;
-          with an empty chat it starts a new chat directly */}
+      {/* Clicking New Chat opens the confirmation modal before starting a new session */}
       <button
         type="button"
         className={styles.newChatBtn}
-        onClick={needsConfirm ? undefined : onNewChat}
-        data-bs-toggle={needsConfirm ? "modal" : undefined}
-        data-bs-target={needsConfirm ? `#${NEW_CHAT_MODAL_ID}` : undefined}
+        onClick={onNewChat}
+        aria-label="New chat"
       >
         <i className="fa-solid fa-plus"></i>
         New Chat

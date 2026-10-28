@@ -1,59 +1,76 @@
-import { NEW_CHAT_MODAL_ID } from "../../../config/constants";
+import { useEffect } from "react";
 import styles from "./NewChatModal.module.css";
 
-const NewChatModal = ({ onConfirm }) => {
-  // L1 => States & Global Data
-  // L2 => Effects
-  // L3 => Handlers
-  // L4 => JSX
+const NewChatModal = ({ isOpen, onClose, onConfirm }) => {
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
     <div
-      className="modal fade"
-      id={NEW_CHAT_MODAL_ID}
-      tabIndex="-1"
-      aria-labelledby={`${NEW_CHAT_MODAL_ID}-title`}
-      aria-hidden="true"
+      className={styles.backdrop}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-chat-modal-title"
     >
-      <div className="modal-dialog modal-dialog-centered">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h2
-              className={`${styles.title} modal-title fs-5`}
-              id={`${NEW_CHAT_MODAL_ID}-title`}
-            >
+      <div className={styles.modalDialog} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <div className={styles.titleArea}>
+            <div className={styles.headerIcon}>
+              <i className="fa-solid fa-plus"></i>
+            </div>
+            <h2 id="new-chat-modal-title" className={styles.modalTitle}>
               Start a new chat?
             </h2>
-            <button
-              type="button"
-              className="btn-close"
-              data-bs-dismiss="modal"
-              aria-label="Close"
-            ></button>
           </div>
+          <button
+            type="button"
+            className={styles.closeBtn}
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
 
-          <div className="modal-body">
-            <p className="mb-0">
-              Your current conversation will remain saved in the sidebar. Start a new chat?
-            </p>
-          </div>
+        <div className={styles.modalBody}>
+          <p className="mb-0">
+            Your current conversation will remain saved in the sidebar. Start a new chat?
+          </p>
+        </div>
 
-          <div className="modal-footer">
-            <button
-              type="button"
-              className="btn btn-light"
-              data-bs-dismiss="modal"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={`btn btn-primary ${styles.confirmBtn}`}
-              data-bs-dismiss="modal"
-              onClick={onConfirm}
-            >
-              New chat
-            </button>
-          </div>
+        <div className={styles.modalFooter}>
+          <button
+            type="button"
+            className={styles.cancelBtn}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={styles.confirmBtn}
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+          >
+            <i className="fa-solid fa-plus"></i>
+            New chat
+          </button>
         </div>
       </div>
     </div>
