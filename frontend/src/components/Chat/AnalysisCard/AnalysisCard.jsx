@@ -27,7 +27,10 @@ const AnalysisCard = ({ message }) => {
     setSelectedMapIndex({
       indexName: indexKey,
       tileUrl: indexData.create_map_layer?.tile_url,
-      bounds: indexData.create_map_layer?.bounds,
+      bounds:
+        indexData.create_map_layer?.bounds ||
+        indexData.describe_aoi?.bounds ||
+        message.geometry?.coordinates,
       metadata: {
         date: indexData.select_image?.date,
         area_km2: indexData.describe_aoi?.area_km2,
@@ -208,7 +211,11 @@ const AnalysisCard = ({ message }) => {
                   <div className={styles.statItem}>
                     <span className={styles.statLabel}>Resolution</span>
                     <span className={styles.statVal}>
-                      {stats.pixel_size_m ? `${stats.pixel_size_m} m` : "10 m"}
+                      {data.compute_index?.resolution_m
+                        ? `${data.compute_index.resolution_m} m`
+                        : stats.pixel_size_m
+                        ? `${stats.pixel_size_m} m`
+                        : "10 m"}
                     </span>
                   </div>
                 </div>
