@@ -2,6 +2,7 @@
 
 import json
 import uuid
+import ee
 from contextlib import asynccontextmanager
 from datetime import date
 
@@ -16,6 +17,7 @@ from pydantic_ai.exceptions import AgentRunError
 
 from ..agent.planner import PlannerDeps, plan_turn
 from ..agent.schemas import AnalysisPlan
+from ..analysis import tools
 from ..analysis.pipeline import run_fixed_pipeline
 from ..analysis.tools import AOI_DIR, init_earth_engine
 from ..analysis.explain import explain_results
@@ -155,12 +157,6 @@ def create_plan(req: PlanRequest):
     if dates is not None:                                       # new dates replace the old ones
         deps = session["deps"]
         deps.start_date, deps.end_date, deps.image_date = dates
-    else:
-        session_id = req.session_id
-        if session_id not in SESSIONS:
-            raise HTTPException(status_code=404, detail="Unknown session_id (the chat expired "
-                                "or the service restarted). Start a new chat.")
-    session = SESSIONS[session_id]
 
     try:
         output, session["history"] = plan_turn(req.message, session["deps"], session["history"])
@@ -272,3 +268,45 @@ def get_explanation(plan_id: str):
                                 for index, steps in results.items()}
     return {"plan_id": plan_id, "session_id": entry["session_id"],
             "explanations": entry["explanation"]}
+
+
+@app.get("/plans/{plan_id}/download/{index}", status_code=307,
+           responses={307: {"description": "Redirect to a fresh GeoTIFF download link (header: location)"}})
+def download_geotiff(plan_id: str, index: str):
+    """GeoTIFF of one index of a finished plan. Redirects to a fresh Earth Engine link."""
+    entry = PLANS.get(plan_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Unknown plan_id (expired or the service "
+                            "restarted). Ask the agent for a new plan.")
+    if entry["status"] != "done":
+        raise HTTPException(status_code=409, detail="The analysis must be finished before downloading.")
+
+    index = index.upper()
+    results = entry["result"]["properties"]["results"]
+    if index not in results:
+        raise HTTPException(status_code=404, detail=f"This plan has no successful result for {index}.")
+
+    deps = SESSIONS[entry["session_id"]]["deps"]
+    ctx, aoi_id, plan = deps.analysis, deps.aoi_id, entry["plan"]
+    day = results[index]["select_image"]["date"]          # exactly the image the user saw
+
+    if aoi_id not in ctx.aois:
+        tools.describe_aoi(ctx, aoi_id)
+    image = tools.select_image(ctx, aoi_id, date=day)
+    if "error" in image:
+        raise HTTPException(status_code=422, detail=image["error"])
+    computed = tools.compute_index(ctx, image["image_ref"], aoi_id, index, plan.cloud_mask)
+    if "error" in computed:
+        raise HTTPException(status_code=422, detail=computed["error"])
+
+    try:
+        url = ctx.results[computed["result_id"]]["image"].getDownloadURL({
+            "name": f"{index}_{day}",
+            "region": ctx.aois[aoi_id],
+            "scale": 10,
+            "crs": "EPSG:4326",
+            "format": "GEO_TIFF",
+        })
+    except ee.EEException as e:
+        raise HTTPException(status_code=422, detail=f"GeoTIFF could not be created: {e}")
+    return RedirectResponse(url, status_code=307)
