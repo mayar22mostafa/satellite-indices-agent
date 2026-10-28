@@ -7,12 +7,12 @@ const activePolls = new Set();
 const wait = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const startPlanPolling = (planId) => {
-  if (activePolls.has(planId)) {
+const startPlanPolling = (plan_id) => {
+  if (activePolls.has(plan_id)) {
     return;
   }
 
-  activePolls.add(planId);
+  activePolls.add(plan_id);
 
   (async () => {
     let previousStatus = null;
@@ -22,13 +22,13 @@ const startPlanPolling = (planId) => {
 
     try {
       while (Date.now() - startTime < maxDuration) {
-        const response = await getPlanResult(planId);
+        const response = await getPlanResult(plan_id);
         const { status } = response;
 
         // Save the Agent's actual status in PostgreSQL.
         if (["Running", "Done", "Failed"].includes(status)) {
           await updateAnalysisPlanStatus(
-            planId,
+            plan_id,
             status,
             status === "Done" ? response.result : undefined
           );
@@ -39,9 +39,9 @@ const startPlanPolling = (planId) => {
           status === "Done" && response.result !== undefined;
 
         if (statusChanged || finalResultReady) {
-          publishPlanUpdate(planId, {
+          publishPlanUpdate(plan_id, {
             ...response,
-            plan_id: response.plan_id || planId,
+            plan_id: response.plan_id || plan_id,
           });
 
           previousStatus = status;
@@ -54,21 +54,21 @@ const startPlanPolling = (planId) => {
         await wait(pollingInterval);
       }
 
-      publishPlanUpdate(planId, {
-        plan_id: planId,
+      publishPlanUpdate(plan_id, {
+        plan_id: plan_id,
         status: "error",
         message: "Analysis monitoring timed out",
       });
     } catch (error) {
-      console.error(`Polling failed for plan ${planId}:`, error.message);
+      console.error(`Polling failed for plan ${plan_id}:`, error.message);
 
       publishPlanUpdate(planId, {
-        plan_id: planId,
+        plan_id: plan_id,
         status: "error",
         message: error.message || "Could not retrieve analysis status",
       });
     } finally {
-      activePolls.delete(planId);
+      activePolls.delete(plan_id);
     }
   })();
 };

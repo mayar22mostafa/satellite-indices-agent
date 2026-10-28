@@ -3,23 +3,23 @@ const AppError = require("../../utils/AppError");
 
 const sendMsgToAgent = async ({
     message,
-    date,
-    startDate,
-    endDate,
+    image_date,
+    start_date,
+    end_date,
     session_id,
-    geojson,
+    aoi,
 }) => {
     try {
         const payload = {
             message,
         };
 
-        if (date) payload.date = date;
-        if (startDate) payload.startDate = startDate;
-        if (endDate) payload.endDate = endDate;
+        if (image_date) payload.image_date = image_date;
+        if (start_date) payload.start_date = start_date;
+        if (end_date) payload.end_date = end_date;
 
-        if (geojson) {
-            payload.aoi = geojson;
+        if (aoi) {
+            payload.aoi = aoi;
         }
         if (session_id) {
             payload.session_id = session_id;
@@ -28,8 +28,12 @@ const sendMsgToAgent = async ({
         const response = await axios.post(
             `${process.env.AGENT_URL}/plans`,
             payload,
-            { timeout: 35000 }
+            { timeout: 120000 }
         );
+        console.log(
+  "Agent response:",
+  JSON.stringify(response.data, null, 2)
+);
 
         return response.data;
     } catch (error) {
@@ -133,3 +137,4 @@ module.exports = {
     approvePlan,
     getPlanResult
 };
+
