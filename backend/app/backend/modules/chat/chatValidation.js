@@ -15,7 +15,7 @@ const validateChat = (req, res, next) => {
 };
 
 const validateDateSelection = (req, res, next) => {
-  const { date, startDate, endDate, session_id } = req.body;
+  const { image_date, start_date, end_date, session_id } = req.body;
 
     // Case 1: Existing conversation
   if (session_id) {
@@ -23,8 +23,8 @@ const validateDateSelection = (req, res, next) => {
   } 
 
   // Case 2: User selected one date
-  if (date) {
-    if (startDate || endDate) {
+  if (image_date) {
+    if (start_date || end_date) {
       return res.status(400).json({
         message: "Choose either one date or a date range",
       });
@@ -34,9 +34,9 @@ const validateDateSelection = (req, res, next) => {
   }
 
 // Case 3: New conversation with a date range
-  if (startDate && endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+  if (start_date && end_date) {
+    const start = new Date(start_date);
+    const end = new Date(end_date);
 
     if (end <= start) {
       return res.status(400).json({

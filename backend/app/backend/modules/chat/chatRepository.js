@@ -54,7 +54,7 @@ const saveMessage = async (conversationId, role, content) => {
 };
 
 const saveAnalysisPlan = async ({
-  planId,
+  plan_id,
   conversationId,
   plan,
 }) => {
@@ -63,13 +63,13 @@ const saveAnalysisPlan = async ({
        (plan_id, conversation_id, plan)
      VALUES ($1, $2, $3)
      RETURNING *`,
-    [planId, conversationId, JSON.stringify(plan)]
+    [plan_id, conversationId, JSON.stringify(plan)]
   );
 
   return result.rows[0];
 };
 
-const updateAnalysisPlanStatus = async (planId, status, result) => {
+const updateAnalysisPlanStatus = async (plan_id, status, result) => {
   const resultJson =
     result === undefined ? null : JSON.stringify(result);
 
@@ -80,7 +80,7 @@ const updateAnalysisPlanStatus = async (planId, status, result) => {
          updated_at = NOW()
      WHERE plan_id = $3
      RETURNING *`,
-    [status, resultJson, planId]
+    [status, resultJson, plan_id]
   );
 
   return queryResult.rows[0] || null;
