@@ -155,7 +155,11 @@ const chatSlice = createSlice({
       updateSavedSession(state);
 
       state.chatKey = session.id;
-      state.messages = session.messages || [createWelcomeMessage()];
+      // Preserve original messages and their exact createdAt timestamps
+      state.messages = (session.messages || [createWelcomeMessage()]).map((msg) => ({
+        ...msg,
+        createdAt: msg.createdAt || session.createdAt || session.updatedAt || Date.now(),
+      }));
       state.conversationId = session.conversationId || null;
       state.status = "idle";
       state.uploadPercent = null;

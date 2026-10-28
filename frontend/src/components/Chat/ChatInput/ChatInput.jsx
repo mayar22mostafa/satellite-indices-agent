@@ -108,6 +108,9 @@ const ChatInput = () => {
     const sentFile = file;
     const sentDate = date;
     const sentMapArea = mapArea;
+    const coordinates =
+      sentMapArea?.geojsonCoordinates ||
+      (sentMapArea?.coordinates ? [sentMapArea.coordinates] : null);
     const messageId = createId();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -121,11 +124,12 @@ const ChatInput = () => {
         createdAt: Date.now(),
         file: sentFile
           ? {
-              name: sentMapArea ? "Map Selection" : sentFile.name,
-              size: sentFile.size,
-              isMapSelection: Boolean(sentMapArea),
-              areaKm2: sentMapArea?.areaKm2 || null,
-            }
+            name: sentMapArea ? "Map Selection" : sentFile.name,
+            size: sentFile.size,
+            isMapSelection: Boolean(sentMapArea),
+            areaKm2: sentMapArea?.areaKm2 || null,
+            coordinates: coordinates || null,
+          }
           : null,
         date: sentDate,
       }),
@@ -145,6 +149,7 @@ const ChatInput = () => {
         file: sentFile,
         date: sentDate,
         conversationId, // null until the agent has started the conversation
+        coordinates,
         signal: controller.signal,
         onUploadProgress: (event) => {
           const fraction =
@@ -223,9 +228,20 @@ const ChatInput = () => {
   };
 
   // Map Selection handlers
-  const handleConfirmMapSelection = ({ file: drawnFile, areaKm2, geojson, coordinates }) => {
+  const handleConfirmMapSelection = ({
+    file: drawnFile,
+    areaKm2,
+    geojson,
+    coordinates,
+    geojsonCoordinates,
+  }) => {
     setFile(drawnFile);
-    setMapArea({ areaKm2, geojson, coordinates });
+    setMapArea({
+      areaKm2,
+      geojson,
+      coordinates,
+      geojsonCoordinates: geojsonCoordinates || [coordinates],
+    });
     setErrorMessage("");
   };
 
@@ -281,7 +297,7 @@ const ChatInput = () => {
         <div className="d-flex flex-wrap gap-2 mb-2">
           {file && mapArea ? (
             <AttachmentChip
-              icon="fa-solid fa-draw-polygon"
+              icon="fa-solid fa-map-location-dot"
               label="Map Selection"
               detail={`${mapArea.areaKm2} km²`}
               removeLabel="Remove map selection"

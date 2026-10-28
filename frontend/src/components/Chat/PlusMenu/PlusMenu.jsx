@@ -47,7 +47,8 @@ const PlusMenu = ({ onAttachFile, onSelectOnMap, disabled }) => {
             className={`dropdown-item d-flex align-items-center gap-2 ${styles.menuItem}`}
             onClick={onSelectOnMap}
           >
-            <i className={`fa-solid fa-map-location-dot ${styles.menuIcon}`}></i>            Select on map
+            <i className={`fa-solid fa-map-location-dot ${styles.menuIcon}`}></i>
+            Select on map
           </button>
         </li>
       </ul>

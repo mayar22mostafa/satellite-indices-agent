@@ -180,43 +180,6 @@
   color: #0b0f19;
 }
 
-/* Layer style switcher (Carto vs Satellite) */
-.layerToggle {
-  position: absolute;
-  bottom: 1rem;
-  left: 1rem;
-  z-index: 1000;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  padding: 0.25rem;
-  display: flex;
-  gap: 0.25rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-
-.layerBtn {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.35rem 0.65rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.layerBtn:hover {
-  color: #ffffff;
-}
-
-.layerBtnActive {
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
-}
-
 /* Modal Footer */
 .modalFooter {
   padding: 0.85rem 1.5rem;

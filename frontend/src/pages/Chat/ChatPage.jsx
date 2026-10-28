@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   startNewChat,
   selectChatKey,
-  selectHasUserMessages,
 } from "../../store/chatSlice";
-import { SIDEBAR_DESKTOP_QUERY } from "../../config/constants";
 import Sidebar from "../../components/Layout/Sidebar/Sidebar";
 import NewChatModal from "../../components/Layout/NewChatModal/NewChatModal";
 import SidebarToggle from "../../components/UI/SidebarToggle/SidebarToggle";
@@ -18,46 +16,29 @@ const ChatPage = () => {
   // L1 => States & Global Data
   const dispatch = useDispatch();
   const chatKey = useSelector(selectChatKey);
-  const hasUserMessages = useSelector(selectHasUserMessages);
-  // Open on desktop, closed on tablets and phones (decided once, at load)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(
-    () => window.matchMedia(SIDEBAR_DESKTOP_QUERY).matches,
-  );
+
+  // The sidebar should always remain open; it only closes when explicitly clicked on the toggle arrow
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const toggleRef = useRef(null);
 
   // L2 => Effects
-  // Esc closes the sidebar while it covers the chat (small screens)
-  useEffect(() => {
-    if (!isSidebarOpen) return;
-
-    const handleKeyDown = (e) => {
-      const isOverlay = !window.matchMedia(SIDEBAR_DESKTOP_QUERY).matches;
-      // defaultPrevented: Bootstrap already used this Esc (open modal or menu)
-      if (e.key === "Escape" && isOverlay && !e.defaultPrevented) {
-        setIsSidebarOpen(false);
-        toggleRef.current?.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isSidebarOpen]);
-
   // L3 => Handlers
   const handleToggleSidebar = () => {
     setIsSidebarOpen((open) => !open);
   };
 
-  const handleCloseSidebar = () => {
-    setIsSidebarOpen(false);
+  const handleOpenNewChatModal = () => {
+    setIsNewChatModalOpen(true);
   };
 
-  const handleNewChat = () => {
+  const handleCloseNewChatModal = () => {
+    setIsNewChatModalOpen(false);
+  };
+
+  const handleConfirmNewChat = () => {
     dispatch(startNewChat());
-    // On small screens the sidebar covers the chat, so close it
-    if (!window.matchMedia(SIDEBAR_DESKTOP_QUERY).matches) {
-      setIsSidebarOpen(false);
-    }
+    setIsNewChatModalOpen(false);
   };
 
   // L4 => JSX
@@ -65,18 +46,13 @@ const ChatPage = () => {
     <div className={styles.page}>
       <Sidebar
         isOpen={isSidebarOpen}
-        onNewChat={handleNewChat}
-        needsConfirm={hasUserMessages}
-        onCloseSidebar={handleCloseSidebar}
+        onNewChat={handleOpenNewChatModal}
       />
-      <NewChatModal onConfirm={handleNewChat} />
-      {isSidebarOpen && (
-        <div
-          className={styles.backdrop}
-          onClick={handleCloseSidebar}
-          aria-hidden="true"
-        ></div>
-      )}
+      <NewChatModal
+        isOpen={isNewChatModalOpen}
+        onClose={handleCloseNewChatModal}
+        onConfirm={handleConfirmNewChat}
+      />
       <SidebarToggle
         ref={toggleRef}
         isOpen={isSidebarOpen}
