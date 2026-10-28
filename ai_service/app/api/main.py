@@ -38,6 +38,8 @@ PLANS: dict[str, dict] = {}      # plan_id -> {"session_id": str, "plan": Analys
 EXECUTOR = ThreadPoolExecutor(max_workers=2)   # at most 2 analyses run at the same time
 LOCK = threading.Lock()                        # stops a double click from starting two runs
 logger = logging.getLogger("ai_service")
+MAX_DOWNLOAD_BYTES = 48 * 1024 * 1024          # Earth Engine's limit for one direct download
+DOWNLOAD_SCALES_M = (10, 20, 30, 60)            # pixel sizes tried in order; the finest that fits wins
 
 # ---------------- request bodies ----------------
 
@@ -299,11 +301,20 @@ def download_geotiff(plan_id: str, index: str):
     if "error" in computed:
         raise HTTPException(status_code=422, detail=computed["error"])
 
+    region = ctx.aois[aoi_id]
+    image = ctx.results[computed["result_id"]]["image"].toFloat()   # 4 bytes per pixel instead of 8
+    box_m2 = region.bounds(1).area(1).getInfo()                      # the file covers the rectangle around the area
+    scale = next((s for s in DOWNLOAD_SCALES_M
+                  if box_m2 / s ** 2 * 4 <= MAX_DOWNLOAD_BYTES * 0.75), None)
+    if scale is None:
+        raise HTTPException(status_code=422, detail="The area is too large for a direct download, "
+                            f"even at {DOWNLOAD_SCALES_M[-1]} m.")
+
     try:
-        url = ctx.results[computed["result_id"]]["image"].getDownloadURL({
-            "name": f"{index}_{day}",
-            "region": ctx.aois[aoi_id],
-            "scale": 10,
+        url = image.getDownloadURL({
+            "name": f"{index}_{day}_{scale}m",
+            "region": region,
+            "scale": scale,
             "crs": "EPSG:4326",
             "format": "GEO_TIFF",
         })
