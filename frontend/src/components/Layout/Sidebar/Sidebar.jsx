@@ -88,9 +88,8 @@ const Sidebar = ({ isOpen, onNewChat }) => {
               return (
                 <div
                   key={chat.id}
-                  className={`${styles.chatItem} ${
-                    isActive ? styles.chatItemActive : ""
-                  }`}
+                  className={`${styles.chatItem} ${isActive ? styles.chatItemActive : ""
+                    }`}
                   onClick={() => handleSelectChat(chat.id)}
                   role="button"
                   tabIndex={0}
@@ -104,9 +103,8 @@ const Sidebar = ({ isOpen, onNewChat }) => {
                 >
                   <div className={styles.chatItemIcon}>
                     <i
-                      className={`fa-solid ${
-                        isActive ? "fa-comment-dots" : "fa-message"
-                      }`}
+                      className={`fa-solid ${isActive ? "fa-comment-dots" : "fa-message"
+                        }`}
                     ></i>
                   </div>
                   <div className={styles.chatItemContent}>
@@ -143,13 +141,12 @@ const Sidebar = ({ isOpen, onNewChat }) => {
         >
           <span className={styles.themeLabelArea}>
             <i
-              className={`fa-solid ${
-                isDark ? "fa-moon" : "fa-sun"
-              }`}
+              className={`fa-solid ${isDark ? "fa-moon" : "fa-sun"
+                }`}
             ></i>
             <span>{isDark ? "Dark Theme" : "Light Theme"}</span>
           </span>
-          <i className="fa-solid fa-arrows-rotate small opacity-75"></i>
+          {/* <i className="fa-solid fa-arrows-rotate small opacity-75"></i> */}
         </button>
       </div>
     </aside>
