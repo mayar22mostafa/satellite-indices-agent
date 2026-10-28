@@ -8,6 +8,7 @@ import {
   deleteSavedChat,
 } from "../../../store/chatSlice";
 import { formatChatHistoryDate } from "../../../utils/dateUtils";
+import { deleteConversation } from "../../../services/api";
 import styles from "./Sidebar.module.css";
 
 const Sidebar = ({ isOpen, onNewChat }) => {
@@ -31,6 +32,10 @@ const Sidebar = ({ isOpen, onNewChat }) => {
 
   const handleDeleteChat = (e, id) => {
     e.stopPropagation();
+    const targetSession = savedChats.find((s) => s.id === id);
+    if (targetSession?.conversationId) {
+      deleteConversation(targetSession.conversationId);
+    }
     dispatch(deleteSavedChat(id));
   };
 
