@@ -6,18 +6,18 @@ const { validateChat, validateDateSelection, validateGeoJSONFile } = require("./
 const uploadGeoJSON = require("../../middlewares/uploadMiddleware");
 
 
-router.post("/sendmsg",
+router.post("/plans",
     uploadGeoJSON,
     validateChat,
     validateDateSelection,
     validateGeoJSONFile,
     sendMessage);
 
-router.post("/plans/:planId/approve", approvePlan);
+router.post("/plans/:plan_id/approve", approvePlan);
 
-router.get("/plans/:planId/result", getPlanResult);
+router.get("/plans/:plan_id/result", getPlanResult);
 
-router.get("/plans/:planId/events", subscribeToPlanEvents);
+router.get("/plans/:plan_id/events", subscribeToPlanEvents);
 
 router.delete("/conversations/:conversationId", deleteChat);
 
