@@ -40,9 +40,9 @@ def post(path: str, body: dict | None = None, tries: int = 2) -> httpx.Response:
 r = client.get("/health")
 check("GET /health -> 200 ok", r.status_code == 200 and r.json() == {"status": "ok"}, r.text)
 paths = set(client.get("/openapi.json").json()["paths"])
-check("exactly 5 endpoints",
+check("exactly 6 endpoints",
       paths == {"/health", "/plans", "/plans/{plan_id}/approve", "/plans/{plan_id}/result",
-                "/plans/{plan_id}/explanation"},
+                "/plans/{plan_id}/explanation", "/plans/{plan_id}/download/{index}"},
       sorted(paths))
 
 # ---- 2. bad input gets clear errors (no Groq or Earth Engine needed) ----
@@ -147,6 +147,18 @@ start = time.time()
 r = client.get(f"/plans/{plan_id}/explanation")
 check("explanation again -> same answer, instantly",
       r.json() == explained and time.time() - start < 3, f"{time.time() - start:.1f} s")
+
+# ---- 4c. GeoTIFF download ----
+r = client.get(f"/plans/{first['plan_id']}/download/NDVI", follow_redirects=False)
+check("download before the analysis is done -> 409", r.status_code == 409, r.text)
+r = client.get(f"/plans/{plan_id}/download/NDBI", follow_redirects=False)
+check("download of an index not in the plan -> 404", r.status_code == 404, r.text)
+r = client.get(f"/plans/{plan_id}/download/NDVI", follow_redirects=False)
+location = r.headers.get("location", "")
+check("download -> 307 redirect to Earth Engine",
+      r.status_code == 307 and "earthengine.googleapis.com" in location, r.text)
+r = client.get(location) if location else r
+check("the link returns a GeoTIFF file", r.status_code == 200 and len(r.content) > 1000, r.status_code)
 
 # ---- 5. unsupported request -> question, not a plan ----
 r = post("/plans", {"message": "what about land surface temperature?", "aoi": AOI, **DATES})

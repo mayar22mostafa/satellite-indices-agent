@@ -325,7 +325,7 @@ SCL_MASKED_CLASSES: tuple[int, ...] = SENTINEL2.cloud_mask_classes
 # Area limit enforced by area reading (km2). Final value set after Cairo
 # measurement in sprint 1 (see risks table in the proposal). Can be overridden
 # per machine with the MAX_AREA_KM2 environment variable (see settings.py).
-DEFAULT_MAX_AREA_KM2 = 2500.0
+DEFAULT_MAX_AREA_KM2 = 10000.0
 
 # Cloud limit used when the engineer does not give one (percent, measured over the area).
 DEFAULT_MAX_CLOUD_PCT = 20.0

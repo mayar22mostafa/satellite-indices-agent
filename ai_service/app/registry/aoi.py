@@ -28,7 +28,7 @@ from shapely.validation import explain_validity, make_valid
 
 WGS84 = CRS.from_epsg(4326)
 EQUAL_AREA = CRS.from_epsg(6933)  # World Cylindrical Equal Area, metres
-MAX_AOI_AREA_KM2 = 100_000
+MAX_AOI_AREA_KM2 = 10000.0
 
 class AOIError(ValueError):
     """Raised when an area file cannot be used. The message explains why."""
