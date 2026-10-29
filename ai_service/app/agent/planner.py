@@ -91,33 +91,18 @@ def check_choice(ctx: RunContext[PlannerDeps], output):
     start, end, day = _plan_dates(output, deps)
     today = date.today()
 
-    if day is None and (start is None or end is None):
-        raise ModelRetry("Give both new_start_date and new_end_date, or only new_image_date.")
-    if (day or end) > today:
-        raise ModelRetry(f"Dates cannot be in the future (today is {today}). "
-                         "Return a ClarifyingQuestion asking for past dates.")
-    if day is None and start > end:
-        raise ModelRetry("new_start_date must be on or before new_end_date.")
-
-    error = _load_area(deps)
-    if error:
-        raise ModelRetry(f"The area cannot be used: {error['error']}. Ask the engineer about it.")
-
     if day:
         found = tools.select_image(deps.analysis, deps.aoi_id, date=day.isoformat())
         if "error" in found:
             nearest = found.get("nearest_dates", [])
-            raise ModelRetry(f"There is no Sentinel-2 image on {day}. Nearest available days: {nearest}. "
+            raise ModelRetry(f"{found['error']} Nearest image days (not checked for clouds yet): {nearest}. "
                              "Do not pick a day yourself. Return a ClarifyingQuestion offering these days.")
     else:
-        found = tools.find_images(deps.analysis, deps.aoi_id, start.isoformat(), end.isoformat(),
-                                  output.max_cloud)
+        found = tools.select_image(deps.analysis, deps.aoi_id, start.isoformat(), end.isoformat(),
+                                   output.max_cloud)
         if "error" in found:
-            raise ModelRetry(found["error"])
-        if found["count"] == 0:
-            raise ModelRetry(f"No images between {start} and {end} with cloud <= {output.max_cloud}%. "
-                             "Do not change the dates yourself. Return a ClarifyingQuestion suggesting "
-                             "a wider date range or a higher cloud limit.")
+            raise ModelRetry(f"{found['error']} Do not change the dates yourself. Return a "
+                             "ClarifyingQuestion suggesting a different date range or a higher cloud limit.")
     return output
 
 

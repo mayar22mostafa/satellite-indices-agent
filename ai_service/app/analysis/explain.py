@@ -8,10 +8,9 @@ Put this file in ai_service/app/analysis/explain.py
 """
 
 import os
-
 from dotenv import load_dotenv
-
 from .tools import ROOT
+from ..registry import registry as reg
 
 load_dotenv(ROOT / ".env")
 MODEL = os.getenv("LLM_MODEL", "groq:llama-3.3-70b-versatile")
@@ -23,6 +22,9 @@ LEVELS = {
              (0.5, "moderate_veg"), (None, "dense_veg")],
     "NDWI": [(-0.1, "mostly_land"), (0.1, "some_moisture"), (None, "water_dominated")],
     "NDBI": [(-0.1, "low_built"), (0.1, "mixed"), (None, "built_up")],
+    "MNDWI": [(0.0, "mostly_land"), (0.2, "some_moisture"), (None, "water_dominated")],
+    "NDMI": [(-0.2, "dry_bare"), (0.0, "low_moisture"), (0.2, "moderate_moisture"),
+             (None, "high_moisture")],
 }
 
 LEVEL_TEXT = {
@@ -37,6 +39,10 @@ LEVEL_TEXT = {
     "low_built": "little built-up area",
     "mixed": "mixed built-up and open land",
     "built_up": "dominated by built-up area",
+    "dry_bare": "mostly bare soil or very dry surfaces",
+    "low_moisture": "dry or sparse vegetation",
+    "moderate_moisture": "vegetation with moderate water content",
+    "high_moisture": "moist, well-watered vegetation",
 }
 
 # What the MIN and MAX usually mean for each index (shown only when the value is extreme).
@@ -45,6 +51,8 @@ EXTREMES = {
              "max": (0.6, "dense, healthy vegetation (farmland, parks)")},
     "NDWI": {"max": (0.3, "clear open water")},
     "NDBI": {"max": (0.2, "dense built-up areas")},
+    "MNDWI": {"max": (0.2, "open water")},
+    "NDMI": {"max": (0.4, "well-watered, dense vegetation")},
 }
 
 
@@ -63,7 +71,8 @@ def build_facts(index: str, steps: dict, plan: dict) -> dict:
     quality = ("good" if cloud < 10 and valid > 90
                else "fair" if cloud <= 20 and valid > 70 else "poor")
     return {
-        "index": index, "mean": st["mean"], "min": st["min"], "max": st["max"], "std": st["std"],
+        "index": index, "index_name": reg.get_index(index).name,
+        "mean": st["mean"], "min": st["min"], "max": st["max"], "std": st["std"],
         "level": _classify(index, st["mean"]),
         "variability": "high" if st["std"] > 0.2 else "low" if st["std"] < 0.1 else "moderate",
         "quality": quality, "cloud_pct": cloud, "valid_pct": valid,

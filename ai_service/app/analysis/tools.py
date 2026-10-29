@@ -27,6 +27,8 @@ ROOT = Path(__file__).resolve().parents[3]   # project root (where .env and data
 AOI_DIR = ROOT / "data" / "aoi"
 AOI_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")   # letters, numbers, _ and - only
 SAT = reg.SENTINEL2                          # the only satellite in the MVP
+MIN_CLEAR_PCT = 20.0     # a day is usable only if at least this % of the area is clear
+MAX_DAYS_CHECKED = 5     # in a date range: how many of the newest days to try
 
 # Display only (colours on the map). Not science, so it lives here, not in the registry.
 VIS = {
@@ -36,6 +38,10 @@ VIS = {
              "palette": ["8c510a", "f6e8c3", "c7eae5", "01665e", "08306b"]},
     "NDBI": {"min": -0.5, "max": 0.5,
              "palette": ["1a9850", "ffffbf", "d73027"]},
+    "MNDWI": {"min": -0.5, "max": 0.5,
+              "palette": ["8c510a", "f6e8c3", "c7eae5", "01665e", "08306b"]},
+    "NDMI": {"min": -0.5, "max": 0.5,
+             "palette": ["8c510a", "d8b365", "f6e8c3", "c7eae5", "5ab4ac", "01665e"]},
 }
 
 
@@ -96,6 +102,18 @@ def _nearest_dates(geom: ee.Geometry, date: str, window_days: int = 15, n: int =
     days = sorted({_to_date(t) for t in times},
                   key=lambda x: abs((datetime.fromisoformat(x) - wanted).days))
     return days[:n]
+
+
+def _clear_pct(geom: ee.Geometry, date: str) -> float:
+    """% of the area that is usable on that day: not cloud, shadow or snow, and inside the image."""
+    scl = _collection(geom, date, date).mosaic().select(SAT.cloud_mask_band)
+    clear = ee.Image(1)
+    for value in SAT.cloud_mask_classes:
+        clear = clear.And(scl.neq(value))          # masked where the image has no data
+    mean = (clear.unmask(0).rename("clear")        # no data -> 0 (not usable)
+            .reduceRegion(ee.Reducer.mean(), geom, scale=100, maxPixels=1e9, tileScale=4)
+            .get("clear").getInfo())
+    return round(100 * (mean or 0), 1)
 
 
 def _aoi_file(aoi_id: str) -> Path | None:
@@ -187,11 +205,17 @@ def select_image(ctx: RunContext, aoi_id: str, start_date: str | None = None,
     if info["tiles"] == 0:
         return {"error": f"No Sentinel-2 image over '{aoi_id}' on {date}.",
                 "nearest_dates": _nearest_dates(geom, date)}
+    if start_date is None or end_date is None:          # exact day: not checked yet
+        clear = _clear_pct(geom, date)
+        if clear < MIN_CLEAR_PCT:
+            return {"error": f"The image of {date} is not usable over '{aoi_id}': only {clear}% of the "
+                             "area is clear (the rest is cloud, shadow or outside the image).",
+                    "nearest_dates": _nearest_dates(geom, date)}
 
     image_ref = f"s2_{date}"
     ctx.images[image_ref] = {"image": day.mosaic(), "date": date}
     return {"image_ref": image_ref, "date": date, "tiles": info["tiles"],
-            "tile_cloud_pct": round(info["cloud"], 1)}
+            "tile_cloud_pct": round(info["cloud"], 1), "area_clear_pct": clear}
 
 
 @safe_tool

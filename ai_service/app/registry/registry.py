@@ -283,6 +283,56 @@ _INDICES: dict[str, Index] = {
             ),
         ),
     ),
+        "MNDWI": Index(
+        "MNDWI",
+        "Modified Normalized Difference Water Index",
+        "(Green - SWIR1) / (Green + SWIR1)",
+        a="B3",
+        b="B11",
+        measures="Open water, also near buildings (computed at 20 m: B11 is a 20 m band)",
+        meaning=IndexMeaning(
+            summary=(
+                "Where open water is, with fewer false alarms from buildings than NDWI "
+                "(higher means more likely open water). Computed at 20 m."
+            ),
+            how_to_read=(
+                ValueBand(-1.0, 0.0, "land: soil, vegetation, built-up"),
+                ValueBand(0.0, 0.2, "mixed or uncertain: wet ground, shallow water, water edges"),
+                ValueBand(0.2, 1.0, "open water"),
+            ),
+            limitations=(
+                "The 20 m resolution can miss narrow canals and small ponds.",
+                "Shadows and very dark surfaces can still look like water.",
+                "The ranges are rules of thumb; turbid or shallow water gives lower values.",
+            ),
+        ),
+    ),
+    "NDMI": Index(
+        "NDMI",
+        "Normalized Difference Moisture Index",
+        "(NIR - SWIR1) / (NIR + SWIR1)",
+        a="B8",
+        b="B11",
+        measures="Water content of vegetation (computed at 20 m: B11 is a 20 m band)",
+        meaning=IndexMeaning(
+            summary=(
+                "How much water the vegetation holds (higher means moister, less water-stressed "
+                "plants). Computed at 20 m."
+            ),
+            how_to_read=(
+                ValueBand(-1.0, -0.2, "bare soil, sand or very dry surfaces"),
+                ValueBand(-0.2, 0.0, "dry or sparse vegetation"),
+                ValueBand(0.0, 0.2, "vegetation with moderate water content"),
+                ValueBand(0.2, 1.0, "moist, well-watered vegetation"),
+            ),
+            limitations=(
+                "It measures water inside plants; it is not an open-water index (rivers and "
+                "lakes can even show very low values). Use NDWI or MNDWI for water.",
+                "Over bare desert it shows how dry the surface is, not crop health.",
+                "The ranges are rules of thumb; they shift with crop type and season.",
+            ),
+        ),
+    ),
 }
 
 
