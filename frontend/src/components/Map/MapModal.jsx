@@ -90,23 +90,38 @@ const MapModal = ({
     });
     mapInstanceRef.current = map;
 
-    // Fit bounds if provided: [[latMin, lonMin], [latMax, lonMax]]
-    if (bounds && Array.isArray(bounds) && bounds.length >= 2) {
+    // Fit bounds if provided: supports flat [minLon, minLat, maxLon, maxLat] or nested [[latMin, lonMin], [latMax, lonMax]]
+    if (bounds && Array.isArray(bounds)) {
       try {
-        const latMin = bounds[0][0];
-        const lonMin = bounds[0][1];
-        const latMax = bounds[1][0];
-        const lonMax = bounds[1][1];
+        let lonMin, latMin, lonMax, latMax;
 
-        const extent = transformExtent(
-          [lonMin, latMin, lonMax, latMax],
-          "EPSG:4326",
-          "EPSG:3857",
-        );
-        view.fit(extent, {
-          padding: [40, 40, 40, 40],
-          duration: 300,
-        });
+        if (bounds.length === 4 && typeof bounds[0] === "number") {
+          // Flat bbox from describe_aoi: [minLon, minLat, maxLon, maxLat]
+          [lonMin, latMin, lonMax, latMax] = bounds;
+        } else if (bounds.length >= 2 && Array.isArray(bounds[0])) {
+          // Nested 2D array: [[latMin, lonMin], [latMax, lonMax]]
+          latMin = bounds[0][0];
+          lonMin = bounds[0][1];
+          latMax = bounds[1][0];
+          lonMax = bounds[1][1];
+        }
+
+        if (
+          lonMin !== undefined &&
+          latMin !== undefined &&
+          lonMax !== undefined &&
+          latMax !== undefined
+        ) {
+          const extent = transformExtent(
+            [lonMin, latMin, lonMax, latMax],
+            "EPSG:4326",
+            "EPSG:3857",
+          );
+          view.fit(extent, {
+            padding: [40, 40, 40, 40],
+            duration: 300,
+          });
+        }
       } catch (err) {
         console.warn("Could not fit OpenLayers map bounds:", err);
       }

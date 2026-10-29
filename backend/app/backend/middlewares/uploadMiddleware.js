@@ -10,7 +10,7 @@ const upload = multer({
 });
 
 const uploadGeoJSON = (req, res, next) => {
-  upload.single("geojson")(req, res, (err) => {
+  upload.single("aoi")(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === "LIMIT_FILE_SIZE") {
         return res.status(400).json({

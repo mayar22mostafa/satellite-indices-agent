@@ -5,20 +5,20 @@ const sendMessage = async (req, res, next) => {
   try {
     const {
       message,
-      date,
-      startDate,
-      endDate,
+      image_date,
+      start_date,
+      end_date,
       session_id,
     } = req.body;
-    const geojson = req.geojson;
+    const aoi = req.geojson;
 
     const result = await chatService.sendMessage({
       message,
-      date,
-      startDate,
-      endDate,
+      image_date,
+      start_date,
+      end_date,
       session_id,
-      geojson,
+      aoi,
     });
 
     res.status(200).json(result);
@@ -31,16 +31,16 @@ const sendMessage = async (req, res, next) => {
 
 const approvePlan = async (req, res, next) => {
   try {
-    const { planId } = req.params;
+    const { plan_id } = req.params;
 
-    if (!planId) {
+    if (!plan_id) {
       return res.status(400).json({
         status: "error",
         message: "planId is required",
       });
     }
 
-    const result = await chatService.approvePlan(planId);
+    const result = await chatService.approvePlan(plan_id);
 
     res.status(202).json(result);
   } catch (error) {
@@ -50,15 +50,15 @@ const approvePlan = async (req, res, next) => {
 
 const getPlanResult = async (req, res, next) => {
   try {
-    const { planId } = req.params;
+    const { plan_id } = req.params;
 
-    if (!planId) {
+    if (!plan_id) {
       return res.status(400).json({
         message: "Plan ID is required",
       });
     }
 
-    const result = await chatService.getPlanResultFromAgent(planId);
+    const result = await chatService.getPlanResultFromAgent(plan_id);
 
     return res.status(200).json(result);
   } catch (error) {
@@ -68,15 +68,15 @@ const getPlanResult = async (req, res, next) => {
 
 const subscribeToPlanEvents = (req, res, next) => {
   try {
-    const { planId } = req.params;
+    const { plan_id } = req.params;
 
-    if (!planId) {
+    if (!plan_id) {
       return res.status(400).json({
         message: "Plan ID is required",
       });
     }
 
-    subscribeToPlan(planId, res);
+    subscribeToPlan(plan_id, res);
   } catch (error) {
     next(error);
   }

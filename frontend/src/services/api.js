@@ -27,8 +27,8 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Builds the multipart form the backend expects (POST /chat/sendmsg).
-// Fields: message, geojson (file), date | startDate + endDate, session_id, coordinates.
+// Builds the multipart form the backend expects (POST /chat/plans).
+// Fields: message, aoi (file), image_date | start_date + end_date, session_id.
 // Optional fields are omitted rather than sent empty (the backend validates them strictly).
 // Do NOT set Content-Type here: the browser must add the multipart boundary itself.
 export const buildMessageForm = ({
@@ -41,7 +41,8 @@ export const buildMessageForm = ({
   const form = new FormData();
 
   // If coordinates are defined (e.g. from map selection), format them as GeoJSON coordinates
-  // and ensure they are clearly defined in both the form payload and transparently for the agent
+  // and ensure they are clearly defined in both the form payload and transparently for the agent.
+  // Note: We do NOT append coordinates as a separate field because backend Joi schema strictly rejects unknown fields.
   let outgoingMessage = text;
   if (coordinates) {
     const formattedCoords = Array.isArray(coordinates)
@@ -54,10 +55,6 @@ export const buildMessageForm = ({
         ? formattedCoords
         : JSON.stringify(formattedCoords);
 
-    // Provide the coordinates field explicitly in the payload in GeoJSON format
-    form.append("coordinates", coordsJson);
-
-    // Include the coordinates transparently in the message for the agent
     outgoingMessage = outgoingMessage
       ? `${outgoingMessage}\n\n[Area Coordinates (GeoJSON Polygon)]: ${coordsJson}`
       : `[Area Coordinates (GeoJSON Polygon)]: ${coordsJson}`;
@@ -65,16 +62,18 @@ export const buildMessageForm = ({
 
   form.append("message", outgoingMessage);
 
+  // Field must be named "aoi" to match upload.single("aoi") in backend uploadMiddleware
   if (file) {
-    form.append("geojson", file); // the field must be named exactly "geojson"
+    form.append("aoi", file);
   }
 
+  // Must match backend Joi validation: image_date or start_date + end_date
   if (date) {
     if (date.from === date.to) {
-      form.append("date", date.from);
+      form.append("image_date", date.from);
     } else {
-      form.append("startDate", date.from);
-      form.append("endDate", date.to);
+      form.append("start_date", date.from);
+      form.append("end_date", date.to);
     }
   }
 
@@ -115,6 +114,7 @@ export const parseAgentResponse = (raw) => {
 
   const conversationId =
     data?.conversationId ??
+    data?.result?.properties?.session_id ??
     data?.properties?.session_id ??
     data?.session_id ??
     null;
@@ -136,8 +136,21 @@ export const parseAgentResponse = (raw) => {
     };
   }
 
-  // 1. GeoJSON Feature -> Analysis result
-  if (data?.type === "Feature" || data?.properties?.results || data?.results) {
+  // 1. Check for analysis results (either direct Feature or wrapped under .result)
+  const analysisData =
+    data?.status === "done" && data?.result
+      ? data.result
+      : data?.result ?? data;
+
+  if (
+    analysisData?.type === "Feature" ||
+    analysisData?.properties?.results ||
+    analysisData?.results
+  ) {
+    const feature =
+      analysisData.type === "Feature"
+        ? analysisData
+        : analysisData.feature || analysisData;
     return {
       conversationId,
       message: {
@@ -145,15 +158,22 @@ export const parseAgentResponse = (raw) => {
         role: "agent",
         type: "analysis",
         createdAt,
-        feature: data,
-        geometry: data.geometry,
-        properties: data.properties || { results: data.results, explanation: data.explanation },
+        feature,
+        geometry: feature.geometry,
+        properties: feature.properties || {
+          results: feature.results,
+          explanation: feature.explanation,
+        },
       },
     };
   }
 
-  // 2. Plan proposal
-  if (data?.type === "plan" || data?.plan || data?.plan_id) {
+  // 2. Plan proposal (only when not already finished/has results)
+  if (
+    data?.type === "plan" ||
+    data?.plan ||
+    (data?.plan_id && data?.status !== "done")
+  ) {
     return {
       conversationId,
       message: {
@@ -164,7 +184,11 @@ export const parseAgentResponse = (raw) => {
         // Only the id the agent issued is valid for /approve; never invent one
         plan_id: data.plan_id ?? data.plan?.plan_id ?? null,
         plan: data.plan || data,
-        text: data.reply || data.message || data.explanation || "Here is the proposed satellite analysis plan:",
+        text:
+          data.reply ||
+          data.message ||
+          data.explanation ||
+          "Here is the proposed satellite analysis plan:",
         approved: false,
       },
     };
@@ -271,7 +295,7 @@ export const approvePlan = async ({ planId, signal }) => {
 };
 
 // Builds the chat message that shows a finished analysis.
-// `result` is whatever the agent returned in GET /plans/:id/result -> { status: "Done", result }
+// `result` is whatever the agent returned in GET /plans/:id/result -> { status: "done", result }
 export const buildAnalysisMessage = (result) => {
   const base = { id: createId(), role: "agent", createdAt: Date.now() };
   let data = result;
@@ -282,6 +306,11 @@ export const buildAnalysisMessage = (result) => {
     } catch {
       return { ...base, type: "text", text: data };
     }
+  }
+
+  // Unwrap if the outer { status: "done", result: ... } envelope was passed
+  if (data?.result) {
+    data = data.result;
   }
 
   // GeoJSON Feature: { type: "Feature", geometry, properties: { results, explanation } }
@@ -352,21 +381,19 @@ export const watchPlan = (planId, { onProgress, onDone, onFailed }) => {
       return; // ignore malformed events
     }
 
-    switch (update.status) {
-      case PLAN_STATUS.DONE:
-        finish(onDone, update);
-        break;
-      case PLAN_STATUS.FAILED:
-        finish(onFailed, {
-          message:
-            update.error || update.message || update.detail || update.reason || "The analysis failed.",
-        });
-        break;
-      case PLAN_STATUS.ERROR:
-        finish(onFailed, { message: update.message || "Could not retrieve the analysis status." });
-        break;
-      default:
-        onProgress?.(update); // e.g. "Running"
+    const status = String(update.status || "").toLowerCase();
+
+    if (status === "done") {
+      finish(onDone, update);
+    } else if (status === "failed") {
+      finish(onFailed, {
+        message:
+          update.error || update.message || update.detail || update.reason || "The analysis failed.",
+      });
+    } else if (status === "error") {
+      finish(onFailed, { message: update.message || "Could not retrieve the analysis status." });
+    } else {
+      onProgress?.(update); // e.g. "Running"
     }
   };
 
@@ -424,3 +451,13 @@ export const getErrorMessage = (error) => {
 export const isConversationExpired = (error) => error.response?.status === 404;
 
 export const isRequestCancelled = (error) => axios.isCancel(error);
+
+// Deletes a conversation from the backend database (DELETE /chat/conversations/:conversationId)
+export const deleteConversation = async (conversationId) => {
+  if (!conversationId) return;
+  try {
+    await api.delete(`/chat/conversations/${encodeURIComponent(conversationId)}`);
+  } catch (err) {
+    console.warn("Could not delete conversation on backend:", err);
+  }
+};

@@ -17,11 +17,11 @@ const { startPlanPolling } = require("./planPollingService");
 
 const sendMessage = async ({
   message,
-  date,
-  startDate,
-  endDate,
+  image_date,
+  start_date,
+  end_date,
   session_id,
-  geojson,
+  aoi,
 }) => {
   // 1. Find an existing conversation or create a new one.
   let conversation;
@@ -42,11 +42,11 @@ const sendMessage = async ({
   // 3. Send the request to the Agent.
   const result = await sendMsgToAgent({
     message,
-    date,
-    startDate,
-    endDate,
+    image_date,
+    start_date,
+    end_date,
     session_id,
-    geojson,
+    aoi,
   });
 
   // 4. Save the session_id returned by the Agent.
@@ -70,7 +70,7 @@ const sendMessage = async ({
   // 6. Save the analysis plan if the Agent returned one.
   if (result.type === "plan" && result.plan_id && result.plan) {
     await saveAnalysisPlan({
-      planId: result.plan_id,
+      plan_id: result.plan_id,
       conversationId: conversation.id,
       plan: result.plan,
     });
@@ -81,19 +81,19 @@ const sendMessage = async ({
 };
 
 
-const approvePlan = async (planId) => {
-  const response = await approvePlanWithAgent(planId);
+const approvePlan = async (plan_id) => {
+  const response = await approvePlanWithAgent(plan_id);
 
-  await updateAnalysisPlanStatus(planId, "Running");
+  await updateAnalysisPlanStatus(plan_id, "Running");
 
-  startPlanPolling(planId);
+  startPlanPolling(plan_id);
 
   return response;
 };
 
 
-const getPlanResultFromAgent = async (planId) => {
-  return await getPlanResult(planId);
+const getPlanResultFromAgent = async (plan_id) => {
+  return await getPlanResult(plan_id);
 };
 
 const deleteChat = async (conversationId) => {

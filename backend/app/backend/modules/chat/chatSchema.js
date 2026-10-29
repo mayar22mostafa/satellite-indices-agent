@@ -5,15 +5,15 @@ const chatSchema = Joi.object({
     .trim()
     .required(),
 
-  date: Joi.date()
+  image_date: Joi.date()
     .iso()
     .optional(),
 
-  startDate: Joi.date()
+  start_date: Joi.date()
     .iso()
     .optional(),
 
-  endDate: Joi.date()
+  end_date: Joi.date()
     .iso()
     .optional(),
 
