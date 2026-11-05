@@ -40,6 +40,7 @@ LOCK = threading.Lock()                        # stops a double click from start
 logger = logging.getLogger("ai_service")
 MAX_DOWNLOAD_BYTES = 48 * 1024 * 1024          # Earth Engine's limit for one direct download
 DOWNLOAD_SCALES_M = (10, 20, 30, 60)            # pixel sizes tried in order; the finest that fits wins
+LONG_RANGE_DAYS = 365                           # longer ranges get a "one image, not a trend" note
 
 # ---------------- request bodies ----------------
 
@@ -47,7 +48,8 @@ DOWNLOAD_SCALES_M = (10, 20, 30, 60)            # pixel sizes tried in order; th
 class PlanRequest(BaseModel):
     message: str = Field(..., min_length=1, description="The engineer's chat message")
     session_id: str | None = Field(None, description="Omit on the first message of a chat")
-    aoi: dict | None = Field(None, description="GeoJSON area; required on the first message")
+    aoi: dict | None = Field(None, description="GeoJSON area: required on the first message; "
+                             "optional later, to change the chat's area")
     start_date: date | None = Field(None, description="First day of the range (YYYY-MM-DD). Use with end_date.")
     end_date: date | None = Field(None, description="Last day of the range (YYYY-MM-DD). Use with start_date.")
     image_date: date | None = Field(None, description="One exact day (YYYY-MM-DD), instead of a range.")
@@ -55,14 +57,14 @@ class PlanRequest(BaseModel):
 
 # ---------------- helpers ----------------
 
-def _check_aoi(aoi: dict) -> bytes:
-    """Validate the area (Somaya's reader). Bad area -> 400."""
+def _check_aoi(aoi: dict) -> tuple[bytes, float]:
+    """Validate the area (Somaya's reader). Bad area -> 400. Returns the raw file and its km²."""
     raw = json.dumps(aoi).encode()
     try:
-        aoi_from_geojson_bytes(raw)
+        area = aoi_from_geojson_bytes(raw)
     except AOIError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return raw
+    return raw, area.area_km2
 
 
 def _save_aoi(raw: bytes) -> str:
@@ -93,6 +95,26 @@ def _read_dates(req: PlanRequest) -> tuple | None:
     if req.end_date > today:
         raise HTTPException(status_code=400, detail=f"end_date cannot be in the future (today is {today}).")
     return req.start_date, req.end_date, None
+
+
+def _app_notes(deps: PlannerDeps, changed: list[str]) -> list[str]:
+    """Assumptions written by code (not the model): what the app changed in this message."""
+    notes = []
+    if "area" in changed:
+        notes.append(f"Using the new area selected in the app ({deps.area_km2:,.0f} km²).")
+    if "dates" in changed:
+        when = (deps.image_date.isoformat() if deps.image_date
+                else f"{deps.start_date.isoformat()} to {deps.end_date.isoformat()}")
+        notes.append(f"Using the new dates selected in the app: {when}.")
+    return notes
+
+
+def _long_range_note(plan: AnalysisPlan) -> list[str]:
+    """Long ranges: say before approval that one image is used, not an average or a trend."""
+    if plan.image_date is None and (plan.end_date - plan.start_date).days > LONG_RANGE_DAYS:
+        return ["Uses only the newest suitable image in this date range (one day), "
+                "not an average or a trend over the whole period."]
+    return []
 
 
 def _first_error(result: dict) -> str | None:
@@ -138,38 +160,55 @@ def health():
 
 @app.post("/plans")
 def create_plan(req: PlanRequest):
-    """One chat message -> a plan to approve, or a clarifying question."""
-    dates = _read_dates(req)                                    # checked before anything is created
-    if req.session_id is None:                                  # first message: new chat
-        if req.aoi is None:
+    """One chat message -> a plan to approve, or a clarifying question.
+
+    First message: aoi and dates are required. Later messages: both are optional;
+    when sent, they replace the chat's current area or dates from this message on.
+    """
+    dates = _read_dates(req)                                    # checked before anything is changed
+    checked = _check_aoi(req.aoi) if req.aoi is not None else None   # bad area -> 400, nothing changed
+    first = req.session_id is None
+    if first:                                                   # first message: new chat
+        if checked is None:
             raise HTTPException(status_code=400,
                                 detail="The first message of a chat must include 'aoi'.")
         if dates is None:
             raise HTTPException(status_code=400, detail="The first message of a chat must include "
                                 "dates: start_date and end_date, or image_date.")
-        aoi_id = _save_aoi(_check_aoi(req.aoi))
         session_id = f"s_{uuid.uuid4().hex[:8]}"
-        SESSIONS[session_id] = {"aoi": req.aoi, "deps": PlannerDeps(aoi_id=aoi_id), "history": None}
+        SESSIONS[session_id] = {"aoi": None, "deps": PlannerDeps(aoi_id=""), "history": None}
     else:
         session_id = req.session_id
         if session_id not in SESSIONS:
             raise HTTPException(status_code=404, detail="Unknown session_id (the chat expired "
                                 "or the service restarted). Start a new chat.")
     session = SESSIONS[session_id]
+    deps = session["deps"]
+
+    changed = []
+    if checked is not None:                                     # a new area replaces the old one
+        raw, area_km2 = checked
+        deps.aoi_id, deps.area_km2 = _save_aoi(raw), area_km2
+        session["aoi"] = req.aoi
+        changed.append("area")
     if dates is not None:                                       # new dates replace the old ones
-        deps = session["deps"]
         deps.start_date, deps.end_date, deps.image_date = dates
+        changed.append("dates")
+    deps.changed_in_app = [] if first else changed             # the first message is the start, not a change
+    notes = _app_notes(deps, deps.changed_in_app)
 
     try:
-        output, session["history"] = plan_turn(req.message, session["deps"], session["history"])
+        output, session["history"] = plan_turn(req.message, deps, session["history"])
     except AgentRunError as e:
         raise HTTPException(status_code=502, detail="The AI model could not answer. "
                             f"Please try again. ({type(e).__name__})")
 
     if isinstance(output, AnalysisPlan):
+        output.assumptions = notes + _long_range_note(output) + output.assumptions
         plan_id = f"plan_{uuid.uuid4().hex[:8]}"
-        PLANS[plan_id] = {"session_id": session_id, "plan": output, "status": None,
-                          "progress": None, "result": None, "error": None, "explanation": None}
+        PLANS[plan_id] = {"session_id": session_id, "aoi_id": deps.aoi_id, "aoi": session["aoi"],
+                          "plan": output, "status": None, "progress": None, "result": None,
+                          "error": None, "explanation": None}
         return {"session_id": session_id, "type": "plan", "plan_id": plan_id,
                 "plan": output.model_dump(mode="json")}
     return {"session_id": session_id, "type": "question", **output.model_dump()}
@@ -179,14 +218,13 @@ def _run_plan(plan_id: str) -> None:
     """Background job: run every index of an approved plan and record the outcome."""
     entry = PLANS[plan_id]
     try:
-        session = SESSIONS[entry["session_id"]]
         plan: AnalysisPlan = entry["plan"]
         total = len(plan.indices)
         results, errors = {}, {}
         for i, index in enumerate(plan.indices):
             entry["progress"] = {"done": i, "total": total, "current": index}
             result = run_fixed_pipeline(
-                session["deps"].aoi_id, index, plan.start_date.isoformat(), plan.end_date.isoformat(),
+                entry["aoi_id"], index, plan.start_date.isoformat(), plan.end_date.isoformat(),
                 max_cloud=plan.max_cloud, cloud_mask=plan.cloud_mask,
                 image_date=plan.image_date.isoformat() if plan.image_date else None,
             )
@@ -198,7 +236,7 @@ def _run_plan(plan_id: str) -> None:
         entry["progress"] = {"done": total, "total": total, "current": None}
 
         if results:
-            entry["result"] = _feature(session["aoi"], {
+            entry["result"] = _feature(entry["aoi"], {
                 "session_id": entry["session_id"], "plan_id": plan_id,
                 "plan": plan.model_dump(mode="json"), "results": results, "errors": errors,
             })
@@ -289,7 +327,7 @@ def download_geotiff(plan_id: str, index: str):
         raise HTTPException(status_code=404, detail=f"This plan has no successful result for {index}.")
 
     deps = SESSIONS[entry["session_id"]]["deps"]
-    ctx, aoi_id, plan = deps.analysis, deps.aoi_id, entry["plan"]
+    ctx, aoi_id, plan = deps.analysis, entry["aoi_id"], entry["plan"]   # the plan's own area
     day = results[index]["select_image"]["date"]          # exactly the image the user saw
 
     if aoi_id not in ctx.aois:

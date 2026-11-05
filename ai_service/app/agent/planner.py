@@ -36,6 +36,8 @@ class PlannerDeps:
     start_date: date | None = None        # the engineer's range ...
     end_date: date | None = None
     image_date: date | None = None        # ... or one exact day
+    area_km2: float | None = None         # size of the chat's current area (context for the agent)
+    changed_in_app: list[str] = field(default_factory=list)   # what the app changed in THIS message
     analysis: AnalysisContext = field(default_factory=AnalysisContext)
 
 
@@ -63,6 +65,18 @@ def selected_dates(ctx: RunContext[PlannerDeps]) -> str:
         current = f"the range {d.start_date.isoformat()} to {d.end_date.isoformat()}"
     return (f"The current dates of this chat are {current}. Use them unless the engineer's "
             "message explicitly asks for different dates (rule 3).")
+
+
+@planner.instructions
+def selected_area(ctx: RunContext[PlannerDeps]) -> str:
+    d = ctx.deps
+    size = f" ({d.area_km2:,.0f} km²)" if d.area_km2 else ""
+    text = f"The chat's current area{size} was selected in the app and is ready to analyse."
+    if d.changed_in_app:
+        text += (" In THIS message the engineer selected new " + " and new ".join(d.changed_in_app)
+                 + " in the app. They are already applied: plan with them, and do not ask the "
+                 "engineer to upload or choose them again.")
+    return text
 
 
 def _load_area(deps: PlannerDeps) -> dict | None:
