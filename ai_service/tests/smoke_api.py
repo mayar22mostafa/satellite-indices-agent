@@ -183,5 +183,25 @@ check("dates typed in a follow-up are used",
       (moved.get("image_date"), moved.get("start_date"), moved.get("end_date"))
       == ("2026-09-26", "2026-09-26", "2026-09-26"), r.text)
 
+# ---- 8. a new area, no change, and a long range in follow-ups ----
+AOI2 = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"name": "giza_test_box"},
+        "geometry": {"type": "Polygon", "coordinates": [[[31.10, 29.95], [31.20, 29.95], [31.20, 30.05],
+                                                          [31.10, 30.05], [31.10, 29.95]]]}}]}
+r = post("/plans", {"message": "show vegetation", "aoi": AOI, **DATES})
+s = r.json()["session_id"]
+r = post("/plans", {"message": "same analysis here", "session_id": s, "aoi": AOI2})
+p = r.json()
+check("new area in a follow-up -> plan that says so",
+      p.get("type") == "plan" and any("new area" in a for a in p["plan"]["assumptions"]), r.text)
+r = post("/plans", {"message": "and add water", "session_id": s})
+p = r.json()
+check("follow-up without area or dates -> plan, no 'new area' note",
+      p.get("type") == "plan" and not any("new area" in a for a in p["plan"]["assumptions"]), r.text)
+r = post("/plans", {"message": "show vegetation", "session_id": s,
+                    "start_date": "2020-01-01", "end_date": "2025-12-31"})
+p = r.json()
+check("long date range -> plan says it uses one image",
+      p.get("type") == "plan" and any("newest suitable image" in a for a in p["plan"]["assumptions"]), r.text)
+
 print("\nALL PASSED" if failures == 0 else f"\n{failures} FAILED")
 sys.exit(1 if failures else 0)
