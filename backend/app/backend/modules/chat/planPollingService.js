@@ -26,17 +26,17 @@ const startPlanPolling = (plan_id) => {
         const { status } = response;
 
         // Save the Agent's actual status in PostgreSQL.
-        if (["Running", "Done", "Failed"].includes(status)) {
+        if (["running", "done", "failed"].includes(status)) {
           await updateAnalysisPlanStatus(
             plan_id,
             status,
-            status === "Done" ? response.result : undefined
+            status === "done" ? response.result : undefined
           );
         }
 
         const statusChanged = status !== previousStatus;
         const finalResultReady =
-          status === "Done" && response.result !== undefined;
+          status === "done" && response.result !== undefined;
 
         if (statusChanged || finalResultReady) {
           publishPlanUpdate(plan_id, {
@@ -47,7 +47,7 @@ const startPlanPolling = (plan_id) => {
           previousStatus = status;
         }
 
-        if (status === "Done" || status === "Failed") {
+        if (status === "done" || status === "failed") {
           return;
         }
 
@@ -62,7 +62,7 @@ const startPlanPolling = (plan_id) => {
     } catch (error) {
       console.error(`Polling failed for plan ${plan_id}:`, error.message);
 
-      publishPlanUpdate(planId, {
+      publishPlanUpdate(plan_id, {
         plan_id: plan_id,
         status: "error",
         message: error.message || "Could not retrieve analysis status",
@@ -70,7 +70,11 @@ const startPlanPolling = (plan_id) => {
     } finally {
       activePolls.delete(plan_id);
     }
-  })();
+  })().catch((error) => {
+    // Last line of defence: a background poll must never become an unhandled
+    // rejection (which would crash the Node process).
+    console.error(`Polling crashed for plan ${plan_id}:`, error);
+  });
 };
 
 module.exports = {

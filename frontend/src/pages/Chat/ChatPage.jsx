@@ -17,8 +17,11 @@ const ChatPage = () => {
   const dispatch = useDispatch();
   const chatKey = useSelector(selectChatKey);
 
-  // The sidebar should always remain open; it only closes when explicitly clicked on the toggle arrow
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Open by default on laptop-size screens and up; closed on smaller tablets.
+  // It only closes/opens when the user clicks the toggle arrow.
+  const [isSidebarOpen, setIsSidebarOpen] = useState(
+    () => window.innerWidth >= 1024,
+  );
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const toggleRef = useRef(null);
 
@@ -43,7 +46,9 @@ const ChatPage = () => {
 
   // L4 => JSX
   return (
-    <div className={styles.page}>
+    <div
+      className={`${styles.page} ${isSidebarOpen ? styles.pageSidebarOpen : ""}`}
+    >
       <Sidebar
         isOpen={isSidebarOpen}
         onNewChat={handleOpenNewChatModal}

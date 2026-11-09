@@ -49,8 +49,10 @@ const deriveChatTitle = (messages) => {
   return "Satellite Analysis";
 };
 
-// Saves or updates current active conversation in the savedChats array
-const updateSavedSession = (state) => {
+// Saves or updates the current active conversation in the savedChats array.
+// `touch: true`  -> real user activity, the chat moves to the top of the sidebar.
+// `touch: false` -> just persisting (switching chats, etc.), the chat keeps its position.
+const updateSavedSession = (state, { touch = true } = {}) => {
   const hasUser = state.messages.some(
     (m) => m.role === "user" || m.type === "user",
   );
@@ -61,18 +63,18 @@ const updateSavedSession = (state) => {
   const existingIndex = state.savedChats.findIndex(
     (s) => s.id === state.chatKey,
   );
+  const existing = existingIndex >= 0 ? state.savedChats[existingIndex] : null;
 
   const sessionData = {
     id: state.chatKey,
     title,
     messages: state.messages,
     conversationId: state.conversationId,
-    updatedAt: now,
-    createdAt:
-      existingIndex >= 0 ? state.savedChats[existingIndex].createdAt : now,
+    updatedAt: touch || !existing ? now : existing.updatedAt,
+    createdAt: existing ? existing.createdAt : now,
   };
 
-  if (existingIndex >= 0) {
+  if (existing) {
     state.savedChats[existingIndex] = sessionData;
   } else {
     state.savedChats.unshift(sessionData);
@@ -131,8 +133,8 @@ const chatSlice = createSlice({
     },
     startNewChat: {
       reducer: (state, action) => {
-        // Save existing chat if it has user messages
-        updateSavedSession(state);
+        // Persist the chat being left, without moving it in the sidebar
+        updateSavedSession(state, { touch: false });
 
         state.messages = [action.payload.welcomeMessage];
         state.status = "idle";
@@ -151,8 +153,8 @@ const chatSlice = createSlice({
       const session = state.savedChats.find((s) => s.id === sessionId);
       if (!session) return;
 
-      // Save whatever is currently on screen first
-      updateSavedSession(state);
+      // Persist whatever is on screen first, without moving it in the sidebar
+      updateSavedSession(state, { touch: false });
 
       state.chatKey = session.id;
       // Preserve original messages and their exact createdAt timestamps
@@ -202,7 +204,7 @@ const chatSlice = createSlice({
     expireConversation: (state, action) => {
       if (action.payload !== state.chatKey) return;
       state.conversationId = null;
-      updateSavedSession(state);
+      updateSavedSession(state, { touch: false });
     },
     // Upload progress of the request that is running
     updateRequestProgress: (state, action) => {

@@ -19,6 +19,7 @@ router.get("/plans/:plan_id/result", getPlanResult);
 
 router.get("/plans/:plan_id/events", subscribeToPlanEvents);
 
-router.delete("/conversations/:conversationId", deleteChat);
+// :sessionId is the Agent session_id returned to the frontend (NOT the database id)
+router.delete("/conversations/:sessionId", deleteChat);
 
 module.exports = router;

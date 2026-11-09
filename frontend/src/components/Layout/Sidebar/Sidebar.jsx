@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { SIDEBAR_ID } from "../../../config/constants";
 import { toggleTheme, selectThemeMode } from "../../../store/themeSlice";
@@ -8,7 +9,7 @@ import {
   deleteSavedChat,
 } from "../../../store/chatSlice";
 import { formatChatHistoryDate } from "../../../utils/dateUtils";
-import { deleteConversation } from "../../../services/api";
+import { deleteConversation, getErrorMessage } from "../../../services/api";
 import styles from "./Sidebar.module.css";
 
 const Sidebar = ({ isOpen, onNewChat }) => {
@@ -18,6 +19,8 @@ const Sidebar = ({ isOpen, onNewChat }) => {
   const savedChats = useSelector(selectSavedChats);
   const activeChatKey = useSelector(selectChatKey);
   const isDark = themeMode === "dark";
+  const [deletingId, setDeletingId] = useState(null); // local chat id being deleted
+  const [deleteError, setDeleteError] = useState("");
 
   // L2 => Effects
   // L3 => Handlers
@@ -30,12 +33,28 @@ const Sidebar = ({ isOpen, onNewChat }) => {
     dispatch(loadSavedChat(id));
   };
 
-  const handleDeleteChat = (e, id) => {
+  // The chat is removed from the screen and localStorage ONLY after the backend
+  // confirms the database deletion. If the backend fails, the chat stays visible.
+  const handleDeleteChat = async (e, id) => {
     e.stopPropagation();
+    if (deletingId) return;
+
     const targetSession = savedChats.find((s) => s.id === id);
+    setDeleteError("");
+
+    // A chat the agent never answered has no session_id, so nothing exists in the database
     if (targetSession?.conversationId) {
-      deleteConversation(targetSession.conversationId);
+      setDeletingId(id);
+      try {
+        await deleteConversation(targetSession.conversationId);
+      } catch (error) {
+        setDeleteError(`Chat not deleted. ${getErrorMessage(error)}`);
+        setDeletingId(null);
+        return;
+      }
+      setDeletingId(null);
     }
+
     dispatch(deleteSavedChat(id));
   };
 
@@ -73,6 +92,21 @@ const Sidebar = ({ isOpen, onNewChat }) => {
           )}
         </div>
 
+        {deleteError && (
+          <div
+            className="alert alert-danger small d-flex align-items-start justify-content-between gap-2 py-2 px-2 mb-2"
+            role="alert"
+          >
+            <span>{deleteError}</span>
+            <button
+              type="button"
+              className="btn-close flex-shrink-0"
+              aria-label="Dismiss error"
+              onClick={() => setDeleteError("")}
+            ></button>
+          </div>
+        )}
+
         {savedChats.length === 0 ? (
           <div className={styles.emptyState}>
             <i className={`fa-regular fa-comments ${styles.emptyIcon}`}></i>
@@ -88,8 +122,9 @@ const Sidebar = ({ isOpen, onNewChat }) => {
               return (
                 <div
                   key={chat.id}
-                  className={`${styles.chatItem} ${isActive ? styles.chatItemActive : ""
-                    }`}
+                  className={`${styles.chatItem} ${
+                    isActive ? styles.chatItemActive : ""
+                  }`}
                   onClick={() => handleSelectChat(chat.id)}
                   role="button"
                   tabIndex={0}
@@ -103,8 +138,9 @@ const Sidebar = ({ isOpen, onNewChat }) => {
                 >
                   <div className={styles.chatItemIcon}>
                     <i
-                      className={`fa-solid ${isActive ? "fa-comment-dots" : "fa-message"
-                        }`}
+                      className={`fa-solid ${
+                        isActive ? "fa-comment-dots" : "fa-message"
+                      }`}
                     ></i>
                   </div>
                   <div className={styles.chatItemContent}>
@@ -119,6 +155,7 @@ const Sidebar = ({ isOpen, onNewChat }) => {
                     type="button"
                     className={styles.deleteBtn}
                     onClick={(e) => handleDeleteChat(e, chat.id)}
+                    disabled={deletingId === chat.id}
                     aria-label={`Delete chat: ${chat.title}`}
                     title="Delete chat"
                   >
@@ -141,12 +178,13 @@ const Sidebar = ({ isOpen, onNewChat }) => {
         >
           <span className={styles.themeLabelArea}>
             <i
-              className={`fa-solid ${isDark ? "fa-moon" : "fa-sun"
-                }`}
+              className={`fa-solid ${
+                isDark ? "fa-moon" : "fa-sun"
+              }`}
             ></i>
             <span>{isDark ? "Dark Theme" : "Light Theme"}</span>
           </span>
-          {/* <i className="fa-solid fa-arrows-rotate small opacity-75"></i> */}
+          <i className="fa-solid fa-arrows-rotate small opacity-75"></i>
         </button>
       </div>
     </aside>

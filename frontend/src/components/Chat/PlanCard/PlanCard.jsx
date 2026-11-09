@@ -23,6 +23,7 @@ const PlanCard = ({ message, isLatest }) => {
 
   // Only the plan_id issued by the agent is valid for /approve (it is not the session id
   // and not the local message id). null means the agent did not provide one.
+  // It is used internally only and is never shown to the user.
   const planId = message.plan_id || null;
   const plan = message.plan || {};
   const isApproved = Boolean(message.approved);
@@ -114,18 +115,21 @@ const PlanCard = ({ message, isLatest }) => {
   const indicesList = Array.isArray(rawIndices) ? rawIndices : [rawIndices];
 
   // Dates formatting
+  // Same start and end date = the user picked a single day, so show one date.
+  // A real range still shows "start to end".
   const dateDisplay =
     plan.start_date && plan.end_date
-      ? `${plan.start_date} to ${plan.end_date}`
+      ? plan.start_date === plan.end_date
+        ? plan.start_date
+        : `${plan.start_date} to ${plan.end_date}`
       : plan.image_date || plan.date || "Latest clear date";
-
   // Assumptions
   const assumptions = Array.isArray(plan.assumptions)
     ? plan.assumptions
     : [
-        "Used Sentinel-2 Level-2A imagery",
-        `Cloud cover under ${plan.max_cloud ?? 20}%`,
-      ];
+      "Used Sentinel-2 Level-2A imagery",
+      `Cloud cover under ${plan.max_cloud ?? 20}%`,
+    ];
 
   const cloudMask = plan.cloud_mask !== false;
 
@@ -142,7 +146,6 @@ const PlanCard = ({ message, isLatest }) => {
           </div>
           <div>
             <h3 className={styles.title}>Proposed Analysis Plan</h3>
-            <span className="small text-muted">ID: {planId}</span>
           </div>
         </div>
 
@@ -197,7 +200,7 @@ const PlanCard = ({ message, isLatest }) => {
 
         <div className={styles.infoItem}>
           <span className={styles.infoLabel}>
-            <i className="fa-solid fa-shield-halved"></i> Cloud Masking
+            <i className="fa-solid fa-shield-halved"></i> Cloud Filtering
           </span>
           <div className={styles.infoValue}>
             {cloudMask ? "Applied (Clear Sky Only)" : "Off"}
@@ -221,7 +224,7 @@ const PlanCard = ({ message, isLatest }) => {
       {!planId && !isApproved && (
         <div className="alert alert-warning small py-2 px-3 mb-3" role="alert">
           <i className="fa-solid fa-triangle-exclamation me-2"></i>
-          The agent did not return a plan ID, so this plan cannot be approved. Please rephrase your request.
+          This plan can't be approved right now. Please rephrase your request.
         </div>
       )}
 
@@ -258,8 +261,8 @@ const PlanCard = ({ message, isLatest }) => {
             isApproved
               ? "Plan already approved"
               : isCurrentlyApproving
-              ? "Running analysis in Earth Engine"
-              : "Approve and run plan"
+                ? "Running analysis in Earth Engine"
+                : "Approve and run plan"
           }
         >
           {isCurrentlyApproving ? (

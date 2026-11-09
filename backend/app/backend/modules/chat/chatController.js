@@ -84,16 +84,16 @@ const subscribeToPlanEvents = (req, res, next) => {
 
 const deleteChat = async (req, res, next) => {
   try {
-    const { conversationId } = req.params;
+    const sessionId = (req.params.sessionId || "").trim();
 
-    if (!conversationId) {
+    if (!sessionId) {
       return res.status(400).json({
         status: "error",
-        message: "Conversation ID is required",
+        message: "Session ID is required",
       });
     }
 
-    const result = await chatService.deleteChat(conversationId);
+    const result = await chatService.deleteChat(sessionId);
 
     return res.status(200).json({
       status: "success",
