@@ -214,8 +214,8 @@ const AnalysisCard = ({ message }) => {
                       {data.compute_index?.resolution_m
                         ? `${data.compute_index.resolution_m} m`
                         : stats.pixel_size_m
-                        ? `${stats.pixel_size_m} m`
-                        : "10 m"}
+                          ? `${stats.pixel_size_m} m`
+                          : "10 m"}
                     </span>
                   </div>
                 </div>

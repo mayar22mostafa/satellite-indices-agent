@@ -10,8 +10,9 @@ const {
   updateAnalysisPlanStatus,
   saveMessage,
   saveAnalysisPlan,
-  deleteConversation,
+  deleteConversationBySessionId,
 } = require("./chatRepository");
+const AppError = require("../../utils/AppError");
 
 const { startPlanPolling } = require("./planPollingService");
 
@@ -84,7 +85,7 @@ const sendMessage = async ({
 const approvePlan = async (plan_id) => {
   const response = await approvePlanWithAgent(plan_id);
 
-  await updateAnalysisPlanStatus(plan_id, "Running");
+  await updateAnalysisPlanStatus(plan_id, "running");
 
   startPlanPolling(plan_id);
 
@@ -96,18 +97,19 @@ const getPlanResultFromAgent = async (plan_id) => {
   return await getPlanResult(plan_id);
 };
 
-const deleteChat = async (conversationId) => {
-  const deletedConversation = await deleteConversation(conversationId);
+// The frontend only knows the Agent's session_id (the database id is never sent
+// to it), so conversations are deleted by session_id.
+const deleteChat = async (sessionId) => {
+  const deleted = await deleteConversationBySessionId(sessionId);
 
-  if (!deletedConversation) {
-    const error = new Error("Chat not found");
-    error.statusCode = 404;
-    throw error;
+  if (!deleted) {
+    throw new AppError("Conversation not found", 404);
   }
 
   return {
     message: "Chat deleted successfully",
-    conversationId: deletedConversation.id,
+    session_id: sessionId,
+    deleted,
   };
 };
 

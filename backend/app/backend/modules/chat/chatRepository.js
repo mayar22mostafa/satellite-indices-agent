@@ -86,15 +86,71 @@ const updateAnalysisPlanStatus = async (plan_id, status, result) => {
   return queryResult.rows[0] || null;
 };
 
-const deleteConversation = async (conversationId) => {
-  const result = await pool.query(
-    `DELETE FROM conversations
-     WHERE id = $1
-     RETURNING id`,
-    [conversationId]
-  );
+// Deletes the conversation(s) that belong to an Agent session_id, together with
+// their messages and analysis plans, in ONE transaction (all or nothing).
+// Children are removed explicitly so this works whether or not the foreign keys
+// are declared ON DELETE CASCADE. Only rows linked to this session_id are touched.
+// Returns null when no conversation has this session_id.
+const deleteConversationBySessionId = async (sessionId) => {
+  const client = await pool.connect();
 
-  return result.rows[0] || null;
+  try {
+    await client.query("BEGIN");
+
+    // Lock the matching conversation row(s) so a concurrent message cannot
+    // attach new children while we are deleting.
+    const found = await client.query(
+      `SELECT id
+       FROM conversations
+       WHERE session_id = $1
+       FOR UPDATE`,
+      [sessionId]
+    );
+
+    if (found.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const plans = await client.query(
+      `DELETE FROM analysis_plans
+       WHERE conversation_id IN (
+         SELECT id FROM conversations WHERE session_id = $1
+       )`,
+      [sessionId]
+    );
+
+    const messages = await client.query(
+      `DELETE FROM messages
+       WHERE conversation_id IN (
+         SELECT id FROM conversations WHERE session_id = $1
+       )`,
+      [sessionId]
+    );
+
+    const conversations = await client.query(
+      `DELETE FROM conversations
+       WHERE session_id = $1`,
+      [sessionId]
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      conversations: conversations.rowCount,
+      messages: messages.rowCount,
+      plans: plans.rowCount,
+    };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      console.error("Rollback failed:", rollbackError.message);
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 
@@ -105,5 +161,5 @@ module.exports = {
   saveMessage,
   saveAnalysisPlan,
   updateAnalysisPlanStatus,
-  deleteConversation,
+  deleteConversationBySessionId,
 };

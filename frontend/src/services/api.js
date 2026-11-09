@@ -234,7 +234,7 @@ export const parseAgentResponse = (raw) => {
   };
 };
 
-// Sends one chat message (POST /chat/sendmsg) and returns { message, conversationId }
+// Sends one chat message (POST /chat/plans) and returns { message, conversationId }
 export const sendMessage = async ({
   text,
   file,
@@ -257,7 +257,7 @@ export const sendMessage = async ({
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const { data } = await api.post("/chat/sendmsg", form, {
+      const { data } = await api.post("/chat/plans", form, {
         signal,
         onUploadProgress,
       });
@@ -452,12 +452,22 @@ export const isConversationExpired = (error) => error.response?.status === 404;
 
 export const isRequestCancelled = (error) => axios.isCancel(error);
 
-// Deletes a conversation from the backend database (DELETE /chat/conversations/:conversationId)
-export const deleteConversation = async (conversationId) => {
-  if (!conversationId) return;
+// Deletes a conversation from the backend database
+// (DELETE /chat/conversations/:sessionId).
+// The identifier is the Agent's session_id (stored in the frontend as `conversationId`);
+// the backend resolves it to its own database rows. Errors are NOT swallowed: the caller
+// must only remove the chat locally after this resolves.
+// A 404 means the backend no longer has this conversation, so there is nothing left to
+// delete and the chat can safely be removed locally too.
+export const deleteConversation = async (sessionId) => {
+  if (!sessionId) return { deleted: false };
   try {
-    await api.delete(`/chat/conversations/${encodeURIComponent(conversationId)}`);
+    const { data } = await api.delete(
+      `/chat/conversations/${encodeURIComponent(sessionId)}`,
+    );
+    return { deleted: true, ...data };
   } catch (err) {
-    console.warn("Could not delete conversation on backend:", err);
+    if (err.response?.status === 404) return { deleted: false, alreadyGone: true };
+    throw err;
   }
 };

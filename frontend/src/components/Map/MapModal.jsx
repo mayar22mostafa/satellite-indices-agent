@@ -10,6 +10,9 @@ import { BASEMAP_TILES, getIndexConfig } from "../../config/indices";
 import { selectThemeMode } from "../../store/themeSlice";
 import styles from "./MapModal.module.css";
 
+// Fixed opacity of the satellite layer (no user control)
+const OVERLAY_OPACITY = 0.85;
+
 const MapModal = ({
   isOpen,
   onClose,
@@ -23,8 +26,6 @@ const MapModal = ({
   const mapInstanceRef = useRef(null);
   const baseLayerRef = useRef(null);
   const overlayLayerRef = useRef(null);
-  const [opacity, setOpacity] = useState(0.85);
-  const [initialOpacity] = useState(0.85);
   const [initialTheme] = useState(themeMode);
 
   const indexConfig = getIndexConfig(indexName);
@@ -72,7 +73,7 @@ const MapModal = ({
           url: tileUrl,
           maxZoom: 20,
         }),
-        opacity: initialOpacity,
+        opacity: OVERLAY_OPACITY,
       });
       overlayLayerRef.current = overlayLayer;
       layers.push(overlayLayer);
@@ -141,7 +142,7 @@ const MapModal = ({
         overlayLayerRef.current = null;
       }
     };
-  }, [isOpen, tileUrl, bounds, initialTheme, initialOpacity]);
+  }, [isOpen, tileUrl, bounds, initialTheme]);
 
   // Dynamically switch basemap tile style when theme changes
   useEffect(() => {
@@ -158,15 +159,6 @@ const MapModal = ({
       }),
     );
   }, [themeMode]);
-
-  // Update overlay opacity in real-time
-  const handleOpacityChange = (e) => {
-    const newOpacity = parseFloat(e.target.value);
-    setOpacity(newOpacity);
-    if (overlayLayerRef.current) {
-      overlayLayerRef.current.setOpacity(newOpacity);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -214,27 +206,8 @@ const MapModal = ({
         <div className={styles.mapContainerWrapper}>
           <div ref={mapContainerRef} className={styles.mapContainer}></div>
 
-          {/* Controls Panel (Opacity Slider & Interactive Legend) */}
+          {/* Legend panel */}
           <div className={styles.controlsPanel}>
-            <div className={styles.controlGroup}>
-              <div className={styles.controlLabel}>
-                <span>
-                  <i className="fa-solid fa-sliders me-1"></i> Layer Opacity
-                </span>
-                <span>{Math.round(opacity * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={opacity}
-                onChange={handleOpacityChange}
-                className={styles.slider}
-                aria-label="Satellite layer opacity"
-              />
-            </div>
-
             <div className={styles.legendBox}>
               <div className={styles.controlLabel}>
                 <span>
